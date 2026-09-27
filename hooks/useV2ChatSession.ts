@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { getMisconception } from "@/lib/learning/misconceptions";
 import { pickOpener, welcomeBackOpener } from "@/lib/learning/v2/openers";
 import { readLastSession, writeLastSession } from "@/lib/learning/v2/localSession";
+import { savePersonalCard } from "@/lib/learning/v2/personalCards";
 import type { ChatMessage, ChatSessionPhase } from "@/lib/learning/v2/types";
 
 /** Below this, there isn't enough to diagnose from — skip the LLM call. */
@@ -132,6 +133,14 @@ export function useV2ChatSession(
 
       const title = getMisconception(misconceptionId)?.title ?? "this";
       const resolved = result.verdict === "resolved";
+
+      if (resolved) {
+        savePersonalCard(conceptId, {
+          misconceptionId,
+          front: probeQuestion,
+          back: result.feedback,
+        });
+      }
 
       if (resolved || attempt >= 2) {
         if (!resolved) {
