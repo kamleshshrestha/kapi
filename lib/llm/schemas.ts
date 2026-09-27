@@ -25,6 +25,27 @@ export const verifyRequestSchema = z.object({
   answer: freeText,
 });
 
+// --- v2 chat session ---------------------------------------------------
+
+export const chatDiagnoseRequestSchema = z.object({
+  conceptId: id,
+  phase: z.literal("diagnose"),
+  explanation: freeText,
+});
+
+export const chatCheckRequestSchema = z.object({
+  conceptId: id,
+  phase: z.literal("check"),
+  misconceptionId: id,
+  probeQuestion: z.string().trim().min(1).max(1000),
+  answer: freeText,
+});
+
+export const chatTurnRequestSchema = z.discriminatedUnion("phase", [
+  chatDiagnoseRequestSchema,
+  chatCheckRequestSchema,
+]);
+
 // --- Structured model outputs -----------------------------------------------
 
 /** Built per request so the model can only pick ids from the catalog. */
@@ -35,6 +56,19 @@ export function diagnosisOutputSchema(misconceptionIds: string[]) {
     primaryMisconceptionId: misconceptionId.nullable(),
     secondaryMisconceptionIds: z.array(misconceptionId),
     reasoning: z.string(),
+  });
+}
+
+export function chatDiagnoseOutputSchema(misconceptionIds: string[]) {
+  const misconceptionId = z.enum(misconceptionIds as [string, ...string[]]);
+  return z.object({
+    /** null when the learner's explanation shows no meaningful gap. */
+    primaryMisconceptionId: misconceptionId.nullable(),
+    reasoning: z.string(),
+    explanation: z.string().nullable(),
+    example: z.string().nullable(),
+    takeaway: z.string().nullable(),
+    probeQuestion: z.string().nullable(),
   });
 }
 

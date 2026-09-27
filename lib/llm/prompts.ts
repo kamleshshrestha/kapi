@@ -55,6 +55,43 @@ ${explanation}
   };
 }
 
+export function chatDiagnosePrompt({
+  concept,
+  misconceptions,
+  explanation,
+}: {
+  concept: Concept;
+  misconceptions: Misconception[];
+  explanation: string;
+}) {
+  return {
+    system: `You are Kapi, a patient machine-learning tutor having a conversation with a beginner. They just explained a concept in their own words, with no multiple-choice options to prime them first.
+
+You get a catalog of known misconceptions for this concept. Compare the learner's explanation against it and pick the single misconception that best explains a specific gap, if any. If their explanation shows correct understanding with no meaningful gap, set primaryMisconceptionId to null. Only use ids from the catalog.
+
+When primaryMisconceptionId is set, write these fields, each addressed to the learner as "you":
+- reasoning: one or two sentences naming what they got right and pointing at the specific gap.
+- explanation: under 120 words, plain language, fixing precisely this gap (not a generic overview).
+- example: one small, concrete example (real numbers where possible) making the correction tangible.
+- takeaway: one sentence they can remember.
+- probeQuestion: a NEW scenario, phrased conversationally like a tutor asking a natural follow-up (not a quiz), that can only be answered correctly if the gap is closed. It must require applying the idea, not repeating the takeaway, and be answerable in two to four sentences.
+
+When primaryMisconceptionId is null, still write "reasoning" (a warm sentence or two confirming what they understand correctly) and set explanation, example, takeaway and probeQuestion to null.
+
+None of these fields may mention the catalog, an id, or the word "misconception"; describe beliefs in plain words instead.
+
+${UNTRUSTED_INPUT_RULE}`,
+    user: `Concept: ${concept.title}
+
+Known misconceptions:
+${catalog(misconceptions)}
+
+<learner_explanation>
+${explanation}
+</learner_explanation>`,
+  };
+}
+
 export function explanationPrompt({
   concept,
   misconception,

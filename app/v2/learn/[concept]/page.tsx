@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getConcept } from "@/lib/learning/concepts";
+import { getQuestionsForConcept } from "@/lib/learning/diagnostic";
+import ChatThread from "@/components/v2/ChatThread";
 
 export default async function V2LearnPage(
   props: PageProps<"/v2/learn/[concept]">,
@@ -9,8 +11,13 @@ export default async function V2LearnPage(
   const concept = getConcept(conceptId);
   if (!concept) notFound();
 
+  // Reuses an existing diagnostic question's options as quick-reply chips
+  // when the learner's free-text explanation is too thin to diagnose from.
+  const fallbackOptions =
+    getQuestionsForConcept(concept.id)[0]?.options.map((o) => o.text) ?? [];
+
   return (
-    <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-10 px-6 py-12 sm:py-20">
+    <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-8 px-6 py-12 sm:py-20">
       <header className="flex flex-col gap-3">
         <Link
           href="/v2"
@@ -23,9 +30,11 @@ export default async function V2LearnPage(
         </h1>
       </header>
 
-      <p className="rounded-xl border border-foreground/10 p-6 leading-7 text-foreground/70">
-        Chat session — coming soon.
-      </p>
+      <ChatThread
+        conceptId={concept.id}
+        conceptTitle={concept.title}
+        fallbackOptions={fallbackOptions}
+      />
     </main>
   );
 }
