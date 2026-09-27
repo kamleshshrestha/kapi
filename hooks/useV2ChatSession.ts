@@ -10,6 +10,10 @@ import type { ChatMessage, ChatSessionPhase } from "@/lib/learning/v2/types";
 /** Below this, there isn't enough to diagnose from — skip the LLM call. */
 const THIN_EXPLANATION_MIN_LENGTH = 15;
 
+/** Probe questions total (the first one from diagnose, plus follow-ups)
+ *  before wrapping up regardless of verdict. */
+const MAX_CHECK_ATTEMPTS = 3;
+
 async function postJson<T>(url: string, body: unknown): Promise<T> {
   let response: Response;
   try {
@@ -40,6 +44,7 @@ type DiagnoseResponse = {
 type CheckResponse = {
   verdict: "resolved" | "partial" | "unresolved";
   feedback: string;
+  nextProbeQuestion: string | null;
 };
 
 export function useV2ChatSession(
@@ -140,25 +145,33 @@ export function useV2ChatSession(
           front: probeQuestion,
           back: result.feedback,
         });
-      }
-
-      if (resolved || attempt >= 2) {
-        if (!resolved) {
-          append(
-            "kapi",
-            "No worries — let's come back to this one later. You can review it anytime from your flashcards.",
-          );
-        }
         writeLastSession(conceptId, {
           misconceptionId,
           misconceptionTitle: title,
-          resolved,
+          resolved: true,
           at: new Date().toISOString(),
         });
         setPhase("done");
         return;
       }
 
+      if (attempt >= MAX_CHECK_ATTEMPTS || !result.nextProbeQuestion) {
+        append(
+          "kapi",
+          "No worries — let's come back to this one later. You can review it anytime from your flashcards.",
+        );
+        writeLastSession(conceptId, {
+          misconceptionId,
+          misconceptionTitle: title,
+          resolved: false,
+          at: new Date().toISOString(),
+        });
+        setPhase("done");
+        return;
+      }
+
+      append("kapi", result.nextProbeQuestion);
+      setProbeQuestion(result.nextProbeQuestion);
       setAttempt((a) => a + 1);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong.");

@@ -123,6 +123,46 @@ ${explanation}
   };
 }
 
+export function chatCheckPrompt({
+  concept,
+  misconception,
+  question,
+  answer,
+}: {
+  concept: Concept;
+  misconception: Misconception;
+  question: string;
+  answer: string;
+}) {
+  return {
+    system: `You are Kapi, continuing a conversation with a learner about a specific misconception they held. They just answered a scenario question meant to test whether they've overcome it.
+
+verdict:
+- "resolved": the answer shows the correct idea and does not rely on the misconception.
+- "partial": partly right, or right but with lingering confusion.
+- "unresolved": the answer still relies on the misconception, or is unrelated.
+
+Write "feedback" as two or three full sentences addressed to the learner ("you"), never just the verdict word. Describe what the learner actually wrote: credit only the ideas they stated, and never attribute a correct idea to them that they did not say. Say what they got right, and if anything is off, say plainly what, without simply restating the whole explanation.
+
+When verdict is "resolved", set nextProbeQuestion to null.
+
+When verdict is "partial" or "unresolved", write nextProbeQuestion: a NEW scenario, phrased conversationally, that approaches the same gap from a different angle than the question just asked — never repeat it or lightly reword it. It must require applying the idea, not repeating a takeaway, and be answerable in two to four sentences.
+
+${UNTRUSTED_INPUT_RULE}`,
+    user: `Concept: ${concept.title}
+
+Misconception being checked:
+belief: ${misconception.belief}
+truth: ${misconception.correction}
+
+Previous question asked: ${question}
+
+<learner_answer>
+${answer}
+</learner_answer>`,
+  };
+}
+
 export function verificationPrompt({
   concept,
   misconception,

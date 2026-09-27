@@ -6,11 +6,11 @@ import {
 import type { Misconception } from "@/lib/learning/types";
 import { generateStructured, llmErrorResponse, parseBody } from "@/lib/llm/client";
 import { checkRateLimit } from "@/lib/llm/rate-limit";
-import { chatDiagnosePrompt, verificationPrompt } from "@/lib/llm/prompts";
+import { chatCheckPrompt, chatDiagnosePrompt } from "@/lib/llm/prompts";
 import {
+  chatCheckOutputSchema,
   chatDiagnoseOutputSchema,
   chatTurnRequestSchema,
-  verificationOutputSchema,
 } from "@/lib/llm/schemas";
 import { scrubMisconceptionIds } from "@/lib/llm/scrub";
 
@@ -67,16 +67,20 @@ export async function POST(request: Request) {
     }
 
     const result = await generateStructured({
-      ...verificationPrompt({
+      ...chatCheckPrompt({
         concept,
         misconception,
         question: data.probeQuestion,
         answer: data.answer,
       }),
-      schema: verificationOutputSchema,
+      schema: chatCheckOutputSchema,
     });
 
-    return Response.json({ verdict: result.verdict, feedback: result.feedback });
+    return Response.json({
+      verdict: result.verdict,
+      feedback: result.feedback,
+      nextProbeQuestion: result.nextProbeQuestion,
+    });
   } catch (error) {
     return llmErrorResponse(error);
   }

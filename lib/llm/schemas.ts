@@ -90,3 +90,15 @@ export const verificationOutputSchema = z.object({
         "feedback must be two or three full sentences for the learner, not just the verdict word",
     }),
 });
+
+export const chatCheckOutputSchema = z.object({
+  verdict: z.enum(["resolved", "partial", "unresolved"]),
+  feedback: z
+    .string()
+    .refine((text) => text.trim().length >= 20, {
+      message:
+        "feedback must be two or three full sentences for the learner, not just the verdict word",
+    }),
+  /** null when resolved; a fresh, different scenario otherwise. */
+  nextProbeQuestion: z.string().nullable(),
+});
