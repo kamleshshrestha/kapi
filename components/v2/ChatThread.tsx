@@ -25,6 +25,8 @@ export default function ChatThread({
     error,
     submit,
     assist,
+    retry,
+    canRetry,
     summary,
     summarizing,
     savedCards,
@@ -61,9 +63,33 @@ export default function ChatThread({
           />
         )}
         {error && (
-          <p role="alert" className="text-red-600 dark:text-red-400">
-            {error}
-          </p>
+          <div role="alert" className="flex items-center gap-2 text-red-600 dark:text-red-400">
+            <p>{error}</p>
+            {canRetry && (
+              <button
+                type="button"
+                onClick={retry}
+                aria-label="Try again"
+                title="Try again"
+                className="shrink-0 rounded-full border border-current p-1.5 transition-opacity hover:opacity-70 focus-visible:outline-2 focus-visible:outline-offset-2"
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  width="16"
+                  height="16"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M21 12a9 9 0 1 1-2.64-6.36" />
+                  <path d="M21 3v6h-6" />
+                </svg>
+              </button>
+            )}
+          </div>
         )}
       </div>
 

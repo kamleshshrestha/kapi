@@ -89,6 +89,11 @@ export function useV2ChatSession(
   const [summarizing, setSummarizing] = useState(false);
   /** How many revisit flashcards the recap added to the "From you" deck. */
   const [savedCards, setSavedCards] = useState(0);
+  // The last request that failed, ready to re-send without re-typing. It is a
+  // closure over the state at the time of the failure, which the failed call
+  // left untouched, so replaying it sends exactly what was sent before.
+  const [failedAction, setFailedAction] = useState<{ run: () => void } | null>(null);
+
   // Instant opener: reads localStorage and picks/templates a cached line.
   // No API call, so there is nothing to wait on before this appears.
   useEffect(() => {
@@ -106,8 +111,8 @@ export function useV2ChatSession(
     setMessages((m) => [...m, { role, text }]);
   }
 
-  async function submitExplanation(text: string) {
-    append("learner", text);
+  async function submitExplanation(text: string, retrying = false) {
+    if (!retrying) append("learner", text);
 
     if (text.trim().length < THIN_EXPLANATION_MIN_LENGTH) {
       append("kapi", "No worries — pick whichever sounds closest, or say a bit more.");
@@ -144,6 +149,7 @@ export function useV2ChatSession(
       setPhase("await-check-answer");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong.");
+      setFailedAction({ run: () => void submitExplanation(text, true) });
     } finally {
       setPending(false);
     }
@@ -173,12 +179,12 @@ export function useV2ChatSession(
     }
   }
 
-  async function submitCheckAnswer(text: string) {
+  async function submitCheckAnswer(text: string, retrying = false) {
     if (!probeQuestion) return;
     // `messages` is the conversation before this answer, which is sent
     // separately, so the model sees the thread leading up to it.
     const history = messages.slice(-CHAT_HISTORY_LIMIT);
-    append("learner", text);
+    if (!retrying) append("learner", text);
     setPending(true);
     setError(null);
     try {
@@ -255,17 +261,21 @@ export function useV2ChatSession(
       );
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong.");
+      setFailedAction({ run: () => void submitCheckAnswer(text, true) });
     } finally {
       setPending(false);
     }
   }
 
   /** Asking for help instead of answering; never advances the question count. */
-  async function assist(kind: AssistKind) {
+  async function assist(kind: AssistKind, retrying = false) {
     if (!probeQuestion || pending || phase !== "await-check-answer") return;
     const history = messages.slice(-CHAT_HISTORY_LIMIT);
     const label = ASSIST_ACTIONS.find((a) => a.kind === kind)?.label ?? kind;
-    append("learner", label);
+    if (!retrying) {
+      setFailedAction(null);
+      append("learner", label);
+    }
     setPending(true);
     setError(null);
     try {
@@ -285,13 +295,23 @@ export function useV2ChatSession(
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong.");
+      setFailedAction({ run: () => void assist(kind, true) });
     } finally {
       setPending(false);
     }
   }
 
+  /** Re-sends the request that just failed, without the learner retyping it. */
+  function retry() {
+    if (!failedAction || pending) return;
+    const { run } = failedAction;
+    setFailedAction(null);
+    run();
+  }
+
   function submit(text: string) {
     if (!text.trim() || pending || phase === "done") return;
+    setFailedAction(null);
     if (phase === "await-explanation") void submitExplanation(text);
     else if (phase === "await-check-answer") void submitCheckAnswer(text);
   }
@@ -304,6 +324,8 @@ export function useV2ChatSession(
     error,
     submit,
     assist,
+    retry,
+    canRetry: failedAction !== null && !pending,
     summary,
     summarizing,
     savedCards,

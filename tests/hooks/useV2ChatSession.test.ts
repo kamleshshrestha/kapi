@@ -700,3 +700,95 @@ describe("useV2ChatSession recap", () => {
     expect(result.current.error).toBeNull();
   });
 });
+
+describe("useV2ChatSession retry", () => {
+  const learnerTexts = (messages: { role: string; text: string }[]) =>
+    messages.filter((m) => m.role === "learner").map((m) => m.text);
+
+  it("cannot retry before anything has failed", async () => {
+    const { result } = setup();
+    await waitFor(() => expect(result.current.messages).toHaveLength(1));
+
+    expect(result.current.canRetry).toBe(false);
+    act(() => result.current.retry());
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("re-sends a failed explanation without retyping or duplicating the message", async () => {
+    reply({ error: "The AI service failed to respond. Please try again." }, 502);
+    const { result } = setup();
+    act(() => result.current.submit(LONG_TEXT));
+    await waitFor(() => expect(result.current.canRetry).toBe(true));
+
+    diagnoseReply();
+    act(() => result.current.retry());
+    await waitFor(() => expect(result.current.phase).toBe("await-check-answer"));
+
+    expect(bodies()).toHaveLength(2);
+    expect(bodies()[1]).toEqual(bodies()[0]);
+    expect(learnerTexts(result.current.messages)).toEqual([LONG_TEXT]);
+    expect(result.current.error).toBeNull();
+    expect(result.current.canRetry).toBe(false);
+  });
+
+  it("re-sends a failed answer with the same history, question and turn", async () => {
+    const { result } = await reachCheckPhase();
+    reply({ error: "Busy." }, 429);
+    act(() => result.current.submit("My answer."));
+    await waitFor(() => expect(result.current.canRetry).toBe(true));
+
+    checkReply("resolved");
+    act(() => result.current.retry());
+    await waitFor(() => expect(result.current.phase).toBe("done"));
+
+    const checks = bodies().filter((b) => b.phase === "check");
+    expect(checks).toHaveLength(2);
+    // Identical request: the failed answer is not in its own history.
+    expect(checks[1]).toEqual(checks[0]);
+    expect(checks[1].history.map((m: { text: string }) => m.text)).not.toContain("My answer.");
+    expect(learnerTexts(result.current.messages).filter((t) => t === "My answer.")).toHaveLength(1);
+  });
+
+  it("re-sends a failed help request without adding a second chat line", async () => {
+    const { result } = await reachCheckPhase();
+    reply({ error: "Busy." }, 502);
+    act(() => void result.current.assist("hint"));
+    await waitFor(() => expect(result.current.canRetry).toBe(true));
+
+    reply({ reply: "Think about unseen data.", question: null });
+    act(() => result.current.retry());
+    await waitFor(() =>
+      expect(result.current.messages.at(-1)?.text).toBe("Think about unseen data."),
+    );
+
+    expect(bodies().filter((b) => b.phase === "assist")).toHaveLength(2);
+    expect(
+      result.current.messages.filter((m) => m.text === "Give me a hint"),
+    ).toHaveLength(1);
+  });
+
+  it("can retry again if the retry fails too", async () => {
+    reply({ error: "Busy." }, 502);
+    const { result } = setup();
+    act(() => result.current.submit(LONG_TEXT));
+    await waitFor(() => expect(result.current.canRetry).toBe(true));
+
+    reply({ error: "Still busy." }, 502);
+    act(() => result.current.retry());
+    await waitFor(() => expect(result.current.error).toBe("Still busy."));
+    await waitFor(() => expect(result.current.canRetry).toBe(true));
+  });
+
+  it("drops the pending retry when the learner sends something new", async () => {
+    reply({ error: "Busy." }, 502);
+    const { result } = setup();
+    act(() => result.current.submit(LONG_TEXT));
+    await waitFor(() => expect(result.current.canRetry).toBe(true));
+
+    diagnoseReply();
+    act(() => result.current.submit("A different, longer explanation."));
+    await waitFor(() => expect(result.current.phase).toBe("await-check-answer"));
+
+    expect(result.current.canRetry).toBe(false);
+  });
+});

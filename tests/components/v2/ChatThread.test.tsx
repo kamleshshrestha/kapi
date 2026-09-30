@@ -23,6 +23,7 @@ afterEach(cleanup);
 function renderThread(overrides: Record<string, unknown> = {}) {
   const submit = vi.fn();
   const assist = vi.fn();
+  const retry = vi.fn();
   session.current = {
     messages: [{ role: "kapi", text: "Hey there" }],
     phase: "await-explanation",
@@ -31,13 +32,15 @@ function renderThread(overrides: Record<string, unknown> = {}) {
     error: null,
     submit,
     assist,
+    retry,
+    canRetry: false,
     summary: null,
     summarizing: false,
     savedCards: 0,
     ...overrides,
   };
   render(<ChatThread conceptId="overfitting" conceptTitle="Overfitting" fallbackOptions={[]} />);
-  return { submit, assist };
+  return { submit, assist, retry };
 }
 
 describe("ChatThread", () => {
@@ -120,5 +123,22 @@ describe("ChatThread", () => {
       "href",
       "/v2/decks/overfitting",
     );
+  });
+
+  it("offers a refresh button beside an error that can be retried", () => {
+    const { retry } = renderThread({
+      error: "The AI service failed to respond. Please try again.",
+      canRetry: true,
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+
+    expect(retry).toHaveBeenCalledOnce();
+    expect(screen.getByRole("alert")).toHaveTextContent("The AI service failed to respond.");
+  });
+
+  it("hides the refresh button when there is nothing to retry", () => {
+    renderThread({ error: "Something broke", canRetry: false });
+    expect(screen.queryByRole("button", { name: "Try again" })).toBeNull();
   });
 });
