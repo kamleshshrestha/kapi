@@ -20,7 +20,7 @@ Package manager is pnpm (`packageManager: pnpm@10.33.0` in package.json).
 - `pnpm build` — production build
 - `pnpm start` — run the production build
 - `pnpm lint` — run ESLint (flat config in `eslint.config.mjs`, extends `eslint-config-next`'s core-web-vitals and typescript rule sets)
-- `pnpm test` — run the Vitest unit tests once (`pnpm test:watch` to watch). Config is `vitest.config.mts`; tests live in `tests/**/*.test.ts` and use the `@/` alias. Covered so far: `lib/learning/`, `lib/llm/` (`client.ts`, `rate-limit.ts`, `schemas.ts`, `scrub.ts`; in `client.ts` tests fetch is stubbed with `vi.stubGlobal` and backoff uses fake timers) and the `/api/diagnose` route (`tests/app/api/diagnose/route.test.ts`).
+- `pnpm test` — run the Vitest unit tests once (`pnpm test:watch` to watch). Config is `vitest.config.mts`; tests live in `tests/**/*.test.{ts,tsx}` and use the `@/` alias. Covered so far: `lib/learning/`, `lib/llm/` (`client.ts`, `rate-limit.ts`, `schemas.ts`, `scrub.ts`; in `client.ts` tests fetch is stubbed with `vi.stubGlobal` and backoff uses fake timers) the `/api/diagnose` route (`tests/app/api/diagnose/route.test.ts`) the `/api/v2/chat` route (`tests/app/api/v2/chat/route.test.ts`) and the `useV2ChatSession` and `useFlashcardDeck` hooks (`tests/hooks/`) and the v2 chat/flashcard components (`tests/components/v2/`; all jsdom tests also import `@testing-library/jest-dom/vitest`, jsdom via a `// @vitest-environment jsdom` docblock plus `@testing-library/react`).
 
 ## Architecture
 
