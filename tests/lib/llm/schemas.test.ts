@@ -3,23 +3,28 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getConcept } from "@/lib/learning/concepts";
 import { getMisconception } from "@/lib/learning/misconceptions";
 import { generateStructured } from "@/lib/llm/client";
-import { verificationPrompt } from "@/lib/llm/prompts";
-import { verificationOutputSchema } from "@/lib/llm/schemas";
+import { chatCheckPrompt } from "@/lib/llm/prompts";
+import { chatCheckOutputSchema } from "@/lib/llm/schemas";
 
 const good =
   "You correctly said the weights stay the same until the optimizer step, which shows you separate gradients from updates.";
 
-describe("verificationOutputSchema feedback", () => {
+describe("chatCheckOutputSchema feedback", () => {
   it("accepts real sentences", () => {
     expect(
-      verificationOutputSchema.safeParse({ verdict: "resolved", feedback: good }).success,
+      chatCheckOutputSchema.safeParse({ verdict: "resolved", feedback: good, nextProbeQuestion: null, hint: null }).success,
     ).toBe(true);
   });
 
   it.each(["resolved", "partial", "unresolved", "", "   ", "Well done!"])(
     "rejects too-short feedback %j",
     (feedback) => {
-      const result = verificationOutputSchema.safeParse({ verdict: "resolved", feedback });
+      const result = chatCheckOutputSchema.safeParse({
+        verdict: "resolved",
+        feedback,
+        nextProbeQuestion: null,
+        hint: null,
+      });
       expect(result.success).toBe(false);
       expect(z.prettifyError(result.error!)).toMatch(/verdict word/);
     },
@@ -27,12 +32,12 @@ describe("verificationOutputSchema feedback", () => {
 
   it("does not add a length keyword to the JSON schema sent to the provider", () => {
     // Some providers mishandle unsupported keywords in strict structured output.
-    const feedback = z.toJSONSchema(verificationOutputSchema).properties?.feedback;
+    const feedback = z.toJSONSchema(chatCheckOutputSchema).properties?.feedback;
     expect(feedback).toEqual({ type: "string" });
   });
 });
 
-describe("verification feedback that is only the verdict word", () => {
+describe("chat feedback that is only the verdict word", () => {
   const reply = (content: object) =>
     new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify(content) } }] }));
 
@@ -45,29 +50,38 @@ describe("verification feedback that is only the verdict word", () => {
   it("is re-asked, and the model is told why", async () => {
     const fetchMock = vi
       .fn()
-      .mockResolvedValueOnce(reply({ verdict: "resolved", feedback: "resolved" }))
-      .mockResolvedValueOnce(reply({ verdict: "resolved", feedback: good }));
+      .mockResolvedValueOnce(reply({ verdict: "resolved", feedback: "resolved", nextProbeQuestion: null, hint: null }))
+      .mockResolvedValueOnce(reply({ verdict: "resolved", feedback: good, nextProbeQuestion: null, hint: null }));
     vi.stubGlobal("fetch", fetchMock);
 
     const result = await generateStructured({
       system: "s",
       user: "u",
-      schema: verificationOutputSchema,
+      schema: chatCheckOutputSchema,
     });
 
-    expect(result).toEqual({ verdict: "resolved", feedback: good });
+    expect(result).toEqual({
+      verdict: "resolved",
+      feedback: good,
+      nextProbeQuestion: null,
+      hint: null,
+    });
     expect(fetchMock).toHaveBeenCalledTimes(2);
     const secondBody = JSON.parse((fetchMock.mock.calls[1] as [string, RequestInit])[1].body as string);
     expect(secondBody.messages.at(-1).content).toMatch(/not just the verdict word/);
   });
 });
 
-describe("verificationPrompt", () => {
-  const { system } = verificationPrompt({
+describe("chatCheckPrompt", () => {
+  const { system } = chatCheckPrompt({
     concept: getConcept("backpropagation")!,
     misconception: getMisconception("bp-updates-weights")!,
     question: "q",
     answer: "a",
+    history: [],
+    turn: 1,
+    maxTurns: 5,
+    attempt: 1,
   });
 
   it("asks for full sentences, not just the verdict word", () => {

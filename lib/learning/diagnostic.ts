@@ -1,10 +1,4 @@
-import { getMisconception } from "./misconceptions";
-import type {
-  Diagnosis,
-  DiagnosticAnswers,
-  DiagnosticQuestion,
-  Misconception,
-} from "./types";
+import type { DiagnosticQuestion } from "./types";
 
 export const diagnosticQuestions: DiagnosticQuestion[] = [
   {
@@ -592,59 +586,4 @@ export function getQuestionsForConcept(
   conceptId: string,
 ): DiagnosticQuestion[] {
   return diagnosticQuestions.filter((q) => q.conceptId === conceptId);
-}
-
-/**
- * Turns a learner's answers into a diagnosis: the misconception revealed by
- * the most wrong answers. Ties go to whichever was revealed first. Returns
- * null when no answer revealed a known misconception.
- */
-export function diagnose(
-  conceptId: string,
-  answers: DiagnosticAnswers,
-): Diagnosis | null {
-  const hits = new Map<string, string[]>();
-
-  for (const question of getQuestionsForConcept(conceptId)) {
-    const option = question.options.find((o) => o.id === answers[question.id]);
-    if (!option?.misconceptionId) continue;
-    const evidence = hits.get(option.misconceptionId) ?? [];
-    evidence.push(question.id);
-    hits.set(option.misconceptionId, evidence);
-  }
-
-  // Array.prototype.sort is stable, so ties keep first-revealed order.
-  const ranked = [...hits.entries()]
-    .map(([id, evidence]) => ({ misconception: getMisconception(id), evidence }))
-    .filter(
-      (r): r is { misconception: Misconception; evidence: string[] } =>
-        r.misconception !== undefined,
-    )
-    .sort((a, b) => b.evidence.length - a.evidence.length);
-
-  if (ranked.length === 0) return null;
-
-  const [top, ...rest] = ranked;
-  return {
-    conceptId,
-    primary: top.misconception,
-    secondary: rest.map((r) => r.misconception),
-    evidence: top.evidence,
-  };
-}
-
-/** Ids of the questions whose selected option revealed `misconceptionId`. */
-export function evidenceFor(
-  conceptId: string,
-  answers: DiagnosticAnswers,
-  misconceptionId: string,
-): string[] {
-  return getQuestionsForConcept(conceptId)
-    .filter((q) =>
-      q.options.some(
-        (o) =>
-          o.id === answers[q.id] && o.misconceptionId === misconceptionId,
-      ),
-    )
-    .map((q) => q.id);
 }
