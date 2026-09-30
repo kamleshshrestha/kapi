@@ -6,7 +6,7 @@ Instead of handing out another generic explanation when a concept doesn't click,
 
 ## Status
 
-Early scaffold — built on Next.js, no product features implemented yet.
+A chat-first learning session (explain a concept to Kapi, get a specific diagnosis, work through it with hints and follow-ups) plus flashcards, for six core machine-learning concepts. See `CLAUDE.md` for the architecture.
 
 ## Tech Stack
 
