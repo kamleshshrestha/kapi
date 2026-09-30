@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useV2ChatSession } from "@/hooks/useV2ChatSession";
+import { ASSIST_ACTIONS, useV2ChatSession } from "@/hooks/useV2ChatSession";
+import AssistChips from "@/components/v2/AssistChips";
+import SessionSummary from "@/components/v2/SessionSummary";
 import ChatBubble from "@/components/v2/ChatBubble";
 import ChatInputBar from "@/components/v2/ChatInputBar";
 import QuickReplyChips from "@/components/v2/QuickReplyChips";
@@ -15,11 +17,18 @@ export default function ChatThread({
   conceptTitle: string;
   fallbackOptions: string[];
 }) {
-  const { messages, phase, quickReplies, pending, error, submit } = useV2ChatSession(
-    conceptId,
-    conceptTitle,
-    fallbackOptions,
-  );
+  const {
+    messages,
+    phase,
+    quickReplies,
+    pending,
+    error,
+    submit,
+    assist,
+    summary,
+    summarizing,
+    savedCards,
+  } = useV2ChatSession(conceptId, conceptTitle, fallbackOptions);
 
   return (
     <div className="flex flex-1 flex-col gap-6">
@@ -39,6 +48,18 @@ export default function ChatThread({
             onPick={(text) => submit(text)}
           />
         )}
+        {summarizing && (
+          <p className="text-sm text-foreground/50" aria-live="polite">
+            Kapi is putting together your recap…
+          </p>
+        )}
+        {summary && (
+          <SessionSummary
+            summary={summary}
+            savedCards={savedCards}
+            deckHref={`/v2/decks/${conceptId}`}
+          />
+        )}
         {error && (
           <p role="alert" className="text-red-600 dark:text-red-400">
             {error}
@@ -54,7 +75,12 @@ export default function ChatThread({
           Try another concept
         </Link>
       ) : (
-        <ChatInputBar disabled={pending} pending={pending} onSubmit={submit} />
+        <div className="flex flex-col gap-3">
+          {phase === "await-check-answer" && (
+            <AssistChips actions={ASSIST_ACTIONS} disabled={pending} onPick={assist} />
+          )}
+          <ChatInputBar disabled={pending} pending={pending} onSubmit={submit} />
+        </div>
       )}
     </div>
   );

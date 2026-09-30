@@ -55,7 +55,7 @@ export default function FlashcardDeck({
         <p className="rounded-xl border border-foreground/10 p-6 text-foreground/70">
           {activeDeck === "core"
             ? `No flashcards for ${conceptTitle} yet.`
-            : "No personalized cards yet — resolve a misconception in a chat session and it'll show up here."}
+            : "No personalized cards yet — finish a chat session and the ideas you resolve or need to revisit will show up here."}
         </p>
       ) : (
         // Keyed so switching decks fully resets review progress.

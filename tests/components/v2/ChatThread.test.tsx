@@ -9,6 +9,11 @@ const session = vi.hoisted(() => ({
 
 vi.mock("@/hooks/useV2ChatSession", () => ({
   useV2ChatSession: () => session.current,
+  ASSIST_ACTIONS: [
+    { kind: "hint", label: "Give me a hint" },
+    { kind: "lost", label: "I'm lost" },
+    { kind: "rephrase", label: "Explain it differently" },
+  ],
 }));
 
 import ChatThread from "@/components/v2/ChatThread";
@@ -17,6 +22,7 @@ afterEach(cleanup);
 
 function renderThread(overrides: Record<string, unknown> = {}) {
   const submit = vi.fn();
+  const assist = vi.fn();
   session.current = {
     messages: [{ role: "kapi", text: "Hey there" }],
     phase: "await-explanation",
@@ -24,10 +30,14 @@ function renderThread(overrides: Record<string, unknown> = {}) {
     pending: false,
     error: null,
     submit,
+    assist,
+    summary: null,
+    summarizing: false,
+    savedCards: 0,
     ...overrides,
   };
   render(<ChatThread conceptId="overfitting" conceptTitle="Overfitting" fallbackOptions={[]} />);
-  return { submit };
+  return { submit, assist };
 }
 
 describe("ChatThread", () => {
@@ -68,6 +78,47 @@ describe("ChatThread", () => {
     expect(screen.getByRole("link", { name: "Try another concept" })).toHaveAttribute(
       "href",
       "/v2",
+    );
+  });
+
+  it("offers help chips while a question is waiting, and routes them to assist", () => {
+    const { assist } = renderThread({ phase: "await-check-answer" });
+
+    fireEvent.click(screen.getByRole("button", { name: "I'm lost" }));
+
+    expect(assist).toHaveBeenCalledExactlyOnceWith("lost");
+  });
+
+  it("does not offer help chips before the first question or after the chat ends", () => {
+    renderThread({ phase: "await-explanation" });
+    expect(screen.queryByRole("button", { name: "Give me a hint" })).toBeNull();
+    cleanup();
+
+    renderThread({ phase: "done" });
+    expect(screen.queryByRole("button", { name: "Give me a hint" })).toBeNull();
+  });
+
+  it("disables the help chips while Kapi is replying", () => {
+    renderThread({ phase: "await-check-answer", pending: true });
+    expect(screen.getByRole("button", { name: "Give me a hint" })).toBeDisabled();
+  });
+
+  it("shows a recap once the chat is done, and a wait message while it loads", () => {
+    renderThread({ phase: "done", summarizing: true });
+    expect(screen.getByText("Kapi is putting together your recap…")).toBeInTheDocument();
+    cleanup();
+
+    renderThread({
+      phase: "done",
+      savedCards: 2,
+      summary: { understood: ["Test score matters."], fixed: [], revisit: [] },
+    });
+    expect(screen.getByRole("region", { name: "Session recap" })).toHaveTextContent(
+      "Test score matters.",
+    );
+    expect(screen.getByRole("link", { name: "Review them" })).toHaveAttribute(
+      "href",
+      "/v2/decks/overfitting",
     );
   });
 });
