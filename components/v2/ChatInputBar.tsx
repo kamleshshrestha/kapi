@@ -43,7 +43,7 @@ export default function ChatInputBar({
         rows={1}
         disabled={disabled}
         placeholder={
-          disabled ? "Session complete" : pending ? "Kapi is typing…" : "Type your answer…"
+          pending ? "Kapi is typing…" : disabled ? "Session complete" : "Type your answer…"
         }
         className="max-h-40 flex-1 resize-none rounded-xl border border-foreground/20 bg-transparent p-3 leading-6 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-60"
       />
