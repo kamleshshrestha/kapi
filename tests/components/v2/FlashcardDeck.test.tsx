@@ -92,7 +92,7 @@ describe("FlashcardDeck", () => {
 
     expect(screen.getByRole("link", { name: "Back to concepts" })).toHaveAttribute(
       "href",
-      "/v2",
+      "/",
     );
   });
 

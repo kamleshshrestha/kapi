@@ -8,9 +8,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Kapi (formerly Learning Debugger; the repo keeps the name `learners-app`) — a web app that helps beginner machine-learning learners identify *specifically* what they misunderstand about a concept, rather than giving them another generic explanation.
 
-The learner experience is a chat-first session with flashcards, available for all six catalog concepts (gradient descent, backpropagation, overfitting, train/test split, linear regression and logistic regression). It lives under `/v2` (the earlier quiz-style v1 flow has been removed; `/` redirects to `/v2`, and the `v2` names in paths, folders and localStorage keys are kept so stored learner data and URLs don't change). A concept in `lib/learning/concepts.ts` without misconceptions has no Core flashcards and the chat cannot diagnose it. Unit tests run with Vitest.
+The learner experience is a chat-first session with flashcards, available for all six catalog concepts (gradient descent, backpropagation, overfitting, train/test split, linear regression and logistic regression). It is served from the root (the earlier quiz-style v1 flow has been removed; the old `/v2/...` URLs redirect to the root ones via `next.config.ts`, and the `v2` names in the API path, component/lib folders and localStorage keys are kept so stored learner data doesn't change). A concept in `lib/learning/concepts.ts` without misconceptions has no Core flashcards and the chat cannot diagnose it. Unit tests run with Vitest.
 
-Learner flow: pick a concept (`/v2`) → explain it in your own words in a chat with Kapi → the LLM finds the specific gap (or compliments a strong explanation and challenges it) → a progressive conversation of up to 5 questions, with hints before reveals and help chips (hint / "I'm lost" / explain differently) → a recap at the end. Resolved ideas and shaky ideas are saved as personal flashcards ("From you" deck, alongside the catalog-derived "Core" deck at `/v2/decks/[concept]`). A too-thin first explanation falls back to the first diagnostic question's options as quick replies.
+Learner flow: pick a concept (`/`) → explain it in your own words in a chat with Kapi → the LLM finds the specific gap (or compliments a strong explanation and challenges it) → a progressive conversation of up to 5 questions, with hints before reveals and help chips (hint / "I'm lost" / explain differently) → a recap at the end. Resolved ideas and shaky ideas are saved as personal flashcards ("From you" deck, alongside the catalog-derived "Core" deck at `/decks/[concept]`). A too-thin first explanation falls back to the first diagnostic question's options as quick replies.
 
 ## Commands
 
@@ -30,11 +30,9 @@ Package manager is pnpm (`packageManager: pnpm@10.33.0` in package.json).
 
 ```
 app/
-├── page.tsx                 redirects to /v2
-├── v2/
-│   ├── page.tsx             concept selection
-│   ├── learn/[concept]/     the chat session
-│   └── decks/[concept]/     flashcard review (Core + "From you" decks)
+├── page.tsx                 concept selection
+├── learn/[concept]/         the chat session
+├── decks/[concept]/         flashcard review (Core + "From you" decks)
 └── api/v2/
     ├── chat/route.ts        chat phases: diagnose, check, assist, summary (leak-checked hints)
     └── flashcards/route.ts  stub (501)

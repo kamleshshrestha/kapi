@@ -135,7 +135,7 @@ function DeckReview({
             Review again
           </button>
           <Link
-            href="/v2"
+            href="/"
             className="rounded-full border border-foreground/20 px-5 py-2 font-medium"
           >
             Back to concepts
