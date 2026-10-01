@@ -4,7 +4,11 @@ import { useEffect, useState } from "react";
 import { getMisconception } from "@/lib/learning/misconceptions";
 import { pickOpener, welcomeBackOpener } from "@/lib/learning/v2/openers";
 import { readLastSession, writeLastSession } from "@/lib/learning/v2/localSession";
-import { savePersonalCard, saveRevisitCards } from "@/lib/learning/v2/personalCards";
+import {
+  saveAnsweredCard,
+  savePersonalCard,
+  saveRevisitCards,
+} from "@/lib/learning/v2/personalCards";
 import { CHAT_HISTORY_LIMIT, MAX_CHAT_TURNS } from "@/lib/learning/v2/chatFlow";
 import type { ChatMessage, ChatSessionPhase } from "@/lib/learning/v2/types";
 
@@ -142,6 +146,18 @@ export function useV2ChatSession(
         return;
       }
 
+      // Record the gap right away, so it is remembered even if the learner
+      // leaves mid-conversation; resolving it later flips this to resolved.
+      if (result.misconceptionId) {
+        writeLastSession(conceptId, {
+          misconceptionId: result.misconceptionId,
+          misconceptionTitle:
+            getMisconception(result.misconceptionId)?.title ?? "this",
+          resolved: false,
+          at: new Date().toISOString(),
+        });
+      }
+
       setMisconceptionId(result.misconceptionId);
       setProbeQuestion(result.probeQuestion);
       setTurn(1);
@@ -212,15 +228,31 @@ export function useV2ChatSession(
       const allVerdicts = [...verdicts, result.verdict];
       setVerdicts(allVerdicts);
 
+      // Every question answered correctly becomes a card (if it isn't one
+      // already). The first one on the diagnosed gap is that gap's card, and
+      // resolving the gap closes it in the session record.
       let everResolved = cardSaved;
-      if (resolved && misconceptionId && !cardSaved) {
-        savePersonalCard(conceptId, {
-          misconceptionId,
-          front: probeQuestion,
-          back: result.feedback,
-        });
-        setCardSaved(true);
-        everResolved = true;
+      if (resolved) {
+        if (misconceptionId && !cardSaved) {
+          savePersonalCard(conceptId, {
+            misconceptionId,
+            front: probeQuestion,
+            back: result.feedback,
+          });
+          writeLastSession(conceptId, {
+            misconceptionId,
+            misconceptionTitle: getMisconception(misconceptionId)?.title ?? "this",
+            resolved: true,
+            at: new Date().toISOString(),
+          });
+          setCardSaved(true);
+          everResolved = true;
+        } else {
+          saveAnsweredCard(conceptId, {
+            front: probeQuestion,
+            back: result.feedback,
+          });
+        }
       }
 
       const next = turn >= MAX_CHAT_TURNS ? null : result.nextProbeQuestion;
