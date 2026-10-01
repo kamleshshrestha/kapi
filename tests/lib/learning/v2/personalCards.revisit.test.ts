@@ -4,6 +4,7 @@ import {
   MAX_REVISIT_CARDS,
   readPersonalCards,
   savePersonalCard,
+  saveAnsweredCard,
   saveRevisitCards,
 } from "@/lib/learning/v2/personalCards";
 
@@ -78,5 +79,50 @@ describe("saveRevisitCards", () => {
   it("degrades without a window", () => {
     // The node-environment sibling test covers reads; this only checks the write path.
     expect(() => saveRevisitCards("overfitting", [])).not.toThrow();
+  });
+});
+
+describe("saveAnsweredCard", () => {
+  it("adds a resolved card with no misconception, next to the gap's own card", () => {
+    savePersonalCard("overfitting", { misconceptionId: "m1", front: "Q1?", back: "A1." });
+    saveAnsweredCard("overfitting", { front: "Q2?", back: "A2." });
+
+    expect(readPersonalCards("overfitting")).toEqual([
+      expect.objectContaining({ id: "personal:m1", kind: "resolved" }),
+      expect.objectContaining({
+        id: "answered:q2",
+        misconceptionId: null,
+        kind: "resolved",
+        front: "Q2?",
+        back: "A2.",
+      }),
+    ]);
+  });
+
+  it("replaces a card for the same question instead of duplicating it", () => {
+    saveAnsweredCard("overfitting", { front: "Q2?", back: "Old." });
+    saveAnsweredCard("overfitting", { front: "Q2?", back: "New." });
+
+    const cards = readPersonalCards("overfitting");
+    expect(cards).toHaveLength(1);
+    expect(cards[0].back).toBe("New.");
+  });
+
+  it("ignores blank cards", () => {
+    saveAnsweredCard("overfitting", { front: " ", back: "A." });
+    expect(readPersonalCards("overfitting")).toEqual([]);
+  });
+
+  it("is not trimmed away by the revisit cap", () => {
+    saveAnsweredCard("overfitting", { front: "Q2?", back: "A2." });
+    saveRevisitCards(
+      "overfitting",
+      Array.from({ length: MAX_REVISIT_CARDS + 2 }, (_, i) => ({
+        front: `R${i}?`,
+        back: "A.",
+      })),
+    );
+
+    expect(readPersonalCards("overfitting").some((c) => c.id === "answered:q2")).toBe(true);
   });
 });

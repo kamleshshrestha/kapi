@@ -59,7 +59,7 @@ export default function ChatThread({
           <SessionSummary
             summary={summary}
             savedCards={savedCards}
-            deckHref={`/v2/decks/${conceptId}`}
+            deckHref={`/decks/${conceptId}`}
           />
         )}
         {error && (
@@ -95,7 +95,7 @@ export default function ChatThread({
 
       {phase === "done" ? (
         <Link
-          href="/v2"
+          href="/"
           className="self-start rounded-full bg-primary px-6 py-3 font-medium text-primary-foreground"
         >
           Try another concept

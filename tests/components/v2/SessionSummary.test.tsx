@@ -3,7 +3,7 @@ import "@testing-library/jest-dom/vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
-const DECK = "/v2/decks/overfitting";
+const DECK = "/decks/overfitting";
 
 import SessionSummary from "@/components/v2/SessionSummary";
 

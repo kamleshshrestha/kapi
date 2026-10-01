@@ -11,7 +11,10 @@
  */
 export type PersonalCard = {
   id: string;
-  /** null for "revisit" cards, which come from the recap, not a diagnosis. */
+  /**
+   * null for "revisit" cards (from the recap) and for follow-up questions
+   * answered in a session beyond the one diagnosed gap.
+   */
   misconceptionId: string | null;
   front: string;
   back: string;
@@ -70,13 +73,45 @@ export function savePersonalCard(
   return next;
 }
 
-function revisitId(front: string): string {
-  const slug = front
+function slugOf(front: string): string {
+  return front
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-|-$/g, "")
     .slice(0, 60);
-  return `revisit:${slug}`;
+}
+
+function revisitId(front: string): string {
+  return `revisit:${slugOf(front)}`;
+}
+
+/**
+ * Adds a card for a question the learner answered correctly in a session
+ * (beyond the first resolved gap, which has its own misconception card). A
+ * question already saved is replaced, never duplicated. Returns the updated list.
+ */
+export function saveAnsweredCard(
+  conceptId: string,
+  card: { front: string; back: string },
+): PersonalCard[] {
+  const front = card.front.trim();
+  const back = card.back.trim();
+  if (!front || !back) return readPersonalCards(conceptId);
+
+  const id = `answered:${slugOf(front)}`;
+  const next: PersonalCard[] = [
+    ...readPersonalCards(conceptId).filter((c) => c.id !== id),
+    {
+      id,
+      misconceptionId: null,
+      front,
+      back,
+      resolvedAt: new Date().toISOString(),
+      kind: "resolved",
+    },
+  ];
+  writeAll(conceptId, next);
+  return next;
 }
 
 /**

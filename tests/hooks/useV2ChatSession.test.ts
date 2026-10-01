@@ -215,6 +215,28 @@ describe("useV2ChatSession explanation phase", () => {
 });
 
 describe("useV2ChatSession check phase", () => {
+  it("records the diagnosed gap as open right away, before any answer", async () => {
+    await reachCheckPhase();
+
+    expect(readLastSession("overfitting")).toMatchObject({
+      misconceptionId: MISCONCEPTION_ID,
+      resolved: false,
+    });
+  });
+
+  it("marks the gap resolved as soon as it is answered, even mid-conversation", async () => {
+    const { result } = await reachCheckPhase();
+    checkReply("resolved", "Deeper question?");
+
+    act(() => result.current.submit("Test score matters."));
+    await waitFor(() =>
+      expect(result.current.messages.at(-1)?.text).toBe("Deeper question?"),
+    );
+
+    expect(result.current.phase).toBe("await-check-answer");
+    expect(readLastSession("overfitting")).toMatchObject({ resolved: true });
+  });
+
   it("posts the check request with the misconception and current probe", async () => {
     const { result } = await reachCheckPhase();
     checkReply("resolved");
@@ -302,7 +324,7 @@ describe("useV2ChatSession check phase", () => {
     expect(readLastSession("overfitting")).toMatchObject({ resolved: false });
   });
 
-  it("keeps going deeper after a resolved answer, saving the card once", async () => {
+  it("keeps going deeper after a resolved answer, adding a card for each answered question", async () => {
     const { result } = await reachCheckPhase();
 
     checkReply("resolved", "Now, what if the test set is tiny?");
@@ -321,8 +343,14 @@ describe("useV2ChatSession check phase", () => {
     act(() => result.current.submit("Then the estimate is noisy."));
     await waitFor(() => expect(result.current.phase).toBe("done"));
 
-    expect(readPersonalCards("overfitting")).toHaveLength(1);
-    expect(readPersonalCards("overfitting")[0].front).toBe(savedFront);
+    const cards = readPersonalCards("overfitting");
+    expect(cards).toHaveLength(2);
+    expect(cards[0].front).toBe(savedFront);
+    expect(cards[1]).toMatchObject({
+      front: "Now, what if the test set is tiny?",
+      misconceptionId: null,
+      kind: "resolved",
+    });
     expect(readLastSession("overfitting")).toMatchObject({ resolved: true });
     expect(
       result.current.messages.some((m) => /come back to this/i.test(m.text)),
@@ -408,7 +436,7 @@ describe("useV2ChatSession strong explanation", () => {
     ]);
   });
 
-  it("sends a null misconception for the challenge follow-up and saves no flashcard", async () => {
+  it("sends a null misconception for the challenge follow-up and saves the answered question as a flashcard", async () => {
     const { result } = await reachChallenge();
     checkReply("resolved", "And with heavy class imbalance?");
 
@@ -420,7 +448,13 @@ describe("useV2ChatSession strong explanation", () => {
     );
 
     expect(lastCheckBody()).toMatchObject({ phase: "check", misconceptionId: null, turn: 1 });
-    expect(readPersonalCards("overfitting")).toEqual([]);
+    expect(readPersonalCards("overfitting")).toEqual([
+      expect.objectContaining({
+        front: strongReply.probeQuestion,
+        misconceptionId: null,
+        kind: "resolved",
+      }),
+    ]);
   });
 
   it("ends without recording a last session when the challenge rounds finish", async () => {

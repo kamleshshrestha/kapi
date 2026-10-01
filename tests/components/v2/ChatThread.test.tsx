@@ -80,7 +80,7 @@ describe("ChatThread", () => {
     expect(screen.queryByRole("textbox")).toBeNull();
     expect(screen.getByRole("link", { name: "Try another concept" })).toHaveAttribute(
       "href",
-      "/v2",
+      "/",
     );
   });
 
@@ -121,7 +121,7 @@ describe("ChatThread", () => {
     );
     expect(screen.getByRole("link", { name: "Review them" })).toHaveAttribute(
       "href",
-      "/v2/decks/overfitting",
+      "/decks/overfitting",
     );
   });
 
