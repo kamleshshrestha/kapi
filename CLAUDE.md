@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-Kapi (formerly Learning Debugger; the repo keeps the name `learners-app`) — a web app that helps beginner machine-learning learners identify *specifically* what they misunderstand about a concept, rather than giving them another generic explanation.
+Kapi (formerly Learning Debugger) — a web app that helps beginner machine-learning learners identify *specifically* what they misunderstand about a concept, rather than giving them another generic explanation.
 
 The learner experience is a chat-first session with flashcards, available for all six catalog concepts (gradient descent, backpropagation, overfitting, train/test split, linear regression and logistic regression). It is served from the root (the earlier quiz-style v1 flow has been removed; the old `/v2/...` URLs redirect to the root ones via `next.config.ts`, and the `v2` names in the API path, component/lib folders and localStorage keys are kept so stored learner data doesn't change). A concept in `lib/learning/concepts.ts` without misconceptions has no Core flashcards and the chat cannot diagnose it. Unit tests run with Vitest.
 
