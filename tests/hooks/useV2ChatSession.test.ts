@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useV2ChatSession } from "@/hooks/useV2ChatSession";
 import { readLastSession, writeLastSession } from "@/lib/learning/v2/localSession";
 import { readPersonalCards } from "@/lib/learning/v2/personalCards";
+import { MAX_CHAT_TURNS } from "@/lib/learning/v2/chatFlow";
 
 const MISCONCEPTION_ID = "of-train-accuracy-proves";
 const OPTIONS = ["It memorises the data", "It generalises well"];
@@ -34,8 +35,16 @@ function checkReply(
   verdict: "resolved" | "partial" | "unresolved",
   nextProbeQuestion: string | null = null,
   hint: string | null = null,
+  extra: { teaching?: string | null; nextMove?: "build" | "check" | "challenge" } = {},
 ) {
-  reply({ verdict, feedback: `Feedback for ${verdict}.`, nextProbeQuestion, hint });
+  reply({
+    verdict,
+    feedback: `Feedback for ${verdict}.`,
+    nextProbeQuestion,
+    hint,
+    teaching: extra.teaching ?? null,
+    nextMove: nextProbeQuestion ? (extra.nextMove ?? "check") : null,
+  });
 }
 
 function setup() {
@@ -149,11 +158,14 @@ describe("useV2ChatSession explanation phase", () => {
       phase: "diagnose",
       explanation: LONG_TEXT,
     });
+    // One Kapi message with paragraphs, not a separate bubble per piece.
     expect(result.current.messages.map((m) => m.text).slice(1)).toEqual([
       LONG_TEXT,
-      "You're leaning on the training score. But that only shows memorisation.",
-      "A model can score 99% on train. Always check held-out data.",
-      "Train 99%, test 70%: is it good?",
+      [
+        "You're leaning on the training score. But that only shows memorisation.",
+        "A model can score 99% on train. Always check held-out data.",
+        "Train 99%, test 70%: is it good?",
+      ].join("\n\n"),
     ]);
     expect(result.current.pending).toBe(false);
     expect(result.current.quickReplies).toBeNull();
@@ -173,7 +185,7 @@ describe("useV2ChatSession explanation phase", () => {
     act(() => result.current.submit(LONG_TEXT));
     await waitFor(() => expect(result.current.phase).toBe("done"));
 
-    expect(result.current.messages.at(-1)?.text).toBe(
+    expect(result.current.messages.at(-1)?.text).toContain(
       "Your explanation is accurate.",
     );
   });
@@ -230,7 +242,7 @@ describe("useV2ChatSession check phase", () => {
 
     act(() => result.current.submit("Test score matters."));
     await waitFor(() =>
-      expect(result.current.messages.at(-1)?.text).toBe("Deeper question?"),
+      expect(result.current.messages.at(-1)?.text).toContain("Deeper question?"),
     );
 
     expect(result.current.phase).toBe("await-check-answer");
@@ -253,12 +265,10 @@ describe("useV2ChatSession check phase", () => {
       answer: "No, test score matters.",
       turn: 1,
     });
-    // The thread before this answer: opener, explanation, diagnosis, example, probe.
-    expect(body.history).toHaveLength(5);
-    expect(body.history.at(-1)).toEqual({
-      role: "kapi",
-      text: "Train 99%, test 70%: is it good?",
-    });
+    // The thread before this answer: opener, explanation, and Kapi's one diagnosis message.
+    expect(body.history).toHaveLength(3);
+    expect(body.history.at(-1)).toMatchObject({ role: "kapi" });
+    expect(body.history.at(-1).text).toMatch(/Train 99%, test 70%: is it good\?$/);
     expect(body.history[1]).toEqual({ role: "learner", text: LONG_TEXT });
   });
 
@@ -288,7 +298,7 @@ describe("useV2ChatSession check phase", () => {
 
     act(() => result.current.submit("Maybe."));
     await waitFor(() =>
-      expect(result.current.messages.at(-1)?.text).toBe(
+      expect(result.current.messages.at(-1)?.text).toContain(
         "What if both scores are low?",
       ),
     );
@@ -301,24 +311,24 @@ describe("useV2ChatSession check phase", () => {
     expect(lastCheckBody().probeQuestion).toBe("What if both scores are low?");
   });
 
-  it("keeps the conversation going through five questions, then wraps up without saving a card", async () => {
+  it("keeps the conversation going through every allowed question, then wraps up without saving a card", async () => {
     const { result } = await reachCheckPhase();
 
-    for (let turn = 1; turn <= 4; turn++) {
+    for (let turn = 1; turn < MAX_CHAT_TURNS; turn++) {
       checkReply("unresolved", `Probe ${turn + 1}?`);
       act(() => result.current.submit(`Not sure ${turn}.`));
       await waitFor(() =>
-        expect(result.current.messages.at(-1)?.text).toBe(`Probe ${turn + 1}?`),
+        expect(result.current.messages.at(-1)?.text).toContain(`Probe ${turn + 1}?`),
       );
       expect(lastCheckBody().turn).toBe(turn);
     }
 
-    checkReply("unresolved", "Sixth probe?");
-    act(() => result.current.submit("Not sure 5."));
+    checkReply("unresolved", "Extra probe?");
+    act(() => result.current.submit(`Not sure ${MAX_CHAT_TURNS}.`));
     await waitFor(() => expect(result.current.phase).toBe("done"));
 
-    expect(lastCheckBody().turn).toBe(5);
-    expect(result.current.messages.map((m) => m.text)).not.toContain("Sixth probe?");
+    expect(lastCheckBody().turn).toBe(MAX_CHAT_TURNS);
+    expect(result.current.messages.some((m) => m.text.includes("Extra probe?"))).toBe(false);
     expect(result.current.messages.at(-1)?.text).toMatch(/come back to this/i);
     expect(readPersonalCards("overfitting")).toEqual([]);
     expect(readLastSession("overfitting")).toMatchObject({ resolved: false });
@@ -330,7 +340,7 @@ describe("useV2ChatSession check phase", () => {
     checkReply("resolved", "Now, what if the test set is tiny?");
     act(() => result.current.submit("Test score matters."));
     await waitFor(() =>
-      expect(result.current.messages.at(-1)?.text).toBe(
+      expect(result.current.messages.at(-1)?.text).toContain(
         "Now, what if the test set is tiny?",
       ),
     );
@@ -362,7 +372,7 @@ describe("useV2ChatSession check phase", () => {
     checkReply("resolved", "Deeper question?");
     act(() => result.current.submit("Answer one."));
     await waitFor(() =>
-      expect(result.current.messages.at(-1)?.text).toBe("Deeper question?"),
+      expect(result.current.messages.at(-1)?.text).toContain("Deeper question?"),
     );
 
     checkReply("partial", null);
@@ -430,10 +440,9 @@ describe("useV2ChatSession strong explanation", () => {
   it("compliments the learner, then asks a challenging question instead of ending", async () => {
     const { result } = await reachChallenge();
 
-    expect(result.current.messages.map((m) => m.text).slice(-2)).toEqual([
-      strongReply.reasoning,
-      strongReply.probeQuestion,
-    ]);
+    expect(result.current.messages.at(-1)?.text).toBe(
+      `${strongReply.reasoning}\n\n${strongReply.probeQuestion}`,
+    );
   });
 
   it("sends a null misconception for the challenge follow-up and saves the answered question as a flashcard", async () => {
@@ -442,7 +451,7 @@ describe("useV2ChatSession strong explanation", () => {
 
     act(() => result.current.submit("Then the estimate is noisy."));
     await waitFor(() =>
-      expect(result.current.messages.at(-1)?.text).toBe(
+      expect(result.current.messages.at(-1)?.text).toContain(
         "And with heavy class imbalance?",
       ),
     );
@@ -476,7 +485,7 @@ describe("useV2ChatSession hints", () => {
 
     act(() => result.current.submit("It's good."));
     await waitFor(() =>
-      expect(result.current.messages.at(-1)?.text).toBe(
+      expect(result.current.messages.at(-1)?.text).toContain(
         "Think about which score you can't memorise.",
       ),
     );
@@ -500,12 +509,12 @@ describe("useV2ChatSession hints", () => {
     const { result } = await reachCheckPhase();
     checkReply("unresolved", null, "A nudge.");
     act(() => result.current.submit("Wrong one."));
-    await waitFor(() => expect(result.current.messages.at(-1)?.text).toBe("A nudge."));
+    await waitFor(() => expect(result.current.messages.at(-1)?.text).toContain("A nudge."));
 
     checkReply("unresolved", "A new angle?");
     act(() => result.current.submit("Wrong two."));
     await waitFor(() =>
-      expect(result.current.messages.at(-1)?.text).toBe("A new angle?"),
+      expect(result.current.messages.at(-1)?.text).toContain("A new angle?"),
     );
 
     expect(result.current.phase).toBe("await-check-answer");
@@ -520,7 +529,7 @@ describe("useV2ChatSession hints", () => {
     const { result } = await reachCheckPhase();
     checkReply("unresolved", null, "A nudge.");
     act(() => result.current.submit("Wrong."));
-    await waitFor(() => expect(result.current.messages.at(-1)?.text).toBe("A nudge."));
+    await waitFor(() => expect(result.current.messages.at(-1)?.text).toContain("A nudge."));
     checkReply("resolved");
     act(() => result.current.submit("Right."));
     await waitFor(() => expect(result.current.phase).toBe("done"));
@@ -537,7 +546,7 @@ describe("useV2ChatSession assist", () => {
 
     act(() => void result.current.assist("hint"));
     await waitFor(() =>
-      expect(result.current.messages.at(-1)?.text).toBe("Think about unseen data."),
+      expect(result.current.messages.at(-1)?.text).toContain("Think about unseen data."),
     );
 
     expect(lastBody("assist")).toMatchObject({
@@ -568,7 +577,7 @@ describe("useV2ChatSession assist", () => {
 
     act(() => void result.current.assist("lost"));
     await waitFor(() =>
-      expect(result.current.messages.at(-1)?.text).toBe("What does 'test score' measure?"),
+      expect(result.current.messages.at(-1)?.text).toContain("What does 'test score' measure?"),
     );
 
     checkReply("resolved");
@@ -635,7 +644,7 @@ describe("useV2ChatSession recap flashcards", () => {
     const { result } = await reachCheckPhase();
     checkReply("resolved", "Deeper?");
     act(() => result.current.submit("Answer one."));
-    await waitFor(() => expect(result.current.messages.at(-1)?.text).toBe("Deeper?"));
+    await waitFor(() => expect(result.current.messages.at(-1)?.text).toContain("Deeper?"));
 
     checkReply("partial");
     reply(WITH_REVISIT);
@@ -696,7 +705,7 @@ describe("useV2ChatSession recap", () => {
 
     act(() => result.current.submit("Maybe."));
     await waitFor(() =>
-      expect(result.current.messages.at(-1)?.text).toBe("Another question?"),
+      expect(result.current.messages.at(-1)?.text).toContain("Another question?"),
     );
 
     expect(lastBody("summary")).toBeUndefined();
@@ -792,7 +801,7 @@ describe("useV2ChatSession retry", () => {
     reply({ reply: "Think about unseen data.", question: null });
     act(() => result.current.retry());
     await waitFor(() =>
-      expect(result.current.messages.at(-1)?.text).toBe("Think about unseen data."),
+      expect(result.current.messages.at(-1)?.text).toContain("Think about unseen data."),
     );
 
     expect(bodies().filter((b) => b.phase === "assist")).toHaveLength(2);
@@ -824,5 +833,135 @@ describe("useV2ChatSession retry", () => {
     await waitFor(() => expect(result.current.phase).toBe("await-check-answer"));
 
     expect(result.current.canRetry).toBe(false);
+  });
+});
+
+describe("useV2ChatSession one message per turn", () => {
+  it("answers with a single Kapi message: feedback then the next question", async () => {
+    const { result } = await reachCheckPhase();
+    const before = result.current.messages.length;
+    checkReply("resolved", "Now, what if the test set is tiny?");
+
+    act(() => result.current.submit("Test score matters."));
+    await waitFor(() => expect(result.current.messages).toHaveLength(before + 2));
+
+    expect(result.current.messages.slice(before)).toEqual([
+      { role: "learner", text: "Test score matters." },
+      {
+        role: "kapi",
+        text: "Feedback for resolved.\n\nNow, what if the test set is tiny?",
+      },
+    ]);
+  });
+
+  it("puts the feedback and hint of a first miss in one message", async () => {
+    const { result } = await reachCheckPhase();
+    const before = result.current.messages.length;
+    checkReply("unresolved", null, "Think about unseen data.");
+
+    act(() => result.current.submit("It's good."));
+    await waitFor(() => expect(result.current.messages).toHaveLength(before + 2));
+
+    expect(result.current.messages.at(-1)?.text).toBe(
+      "Feedback for unresolved.\n\nThink about unseen data.",
+    );
+  });
+
+  it("puts the closing line in the same message as the final feedback and recaps it", async () => {
+    const { result } = await reachCheckPhase();
+    const before = result.current.messages.length;
+    checkReply("partial", null);
+
+    act(() => result.current.submit("Hmm."));
+    await waitFor(() => expect(result.current.phase).toBe("done"));
+
+    expect(result.current.messages).toHaveLength(before + 2);
+    const wrapUp = result.current.messages.at(-1)?.text ?? "";
+    expect(wrapUp).toMatch(/^Feedback for partial\.\n\nNo worries/);
+    await waitFor(() => expect(lastBody("summary")).toBeDefined());
+    expect(lastBody("summary").history.at(-1)).toEqual({ role: "kapi", text: wrapUp });
+  });
+
+  it("puts an assist reply and its simpler question in one message", async () => {
+    const { result } = await reachCheckPhase();
+    const before = result.current.messages.length;
+    reply({ reply: "No problem, let's go smaller.", question: "What does 'test score' measure?" });
+
+    act(() => void result.current.assist("lost"));
+    await waitFor(() => expect(result.current.messages).toHaveLength(before + 2));
+
+    expect(result.current.messages.at(-1)?.text).toBe(
+      "No problem, let's go smaller.\n\nWhat does 'test score' measure?",
+    );
+  });
+});
+
+describe("useV2ChatSession build, check, challenge flow", () => {
+  it("starts a gap with a build step and a strong explanation with a challenge step", async () => {
+    const gap = await reachCheckPhase();
+    checkReply("resolved");
+    act(() => gap.result.current.submit("Answer."));
+    await waitFor(() => expect(gap.result.current.phase).toBe("done"));
+    expect(lastCheckBody().move).toBe("build");
+
+    fetchMock.mockClear();
+    diagnoseReply({ misconceptionId: null, explanation: null, example: null, takeaway: null });
+    const strong = setup();
+    act(() => strong.result.current.submit(LONG_TEXT));
+    await waitFor(() => expect(strong.result.current.phase).toBe("await-check-answer"));
+    checkReply("resolved");
+    act(() => strong.result.current.submit("Answer."));
+    await waitFor(() => expect(strong.result.current.phase).toBe("done"));
+    expect(lastCheckBody().move).toBe("challenge");
+  });
+
+  it("shows the teaching between the feedback and the next question in one message", async () => {
+    const { result } = await reachCheckPhase();
+    const before = result.current.messages.length;
+    checkReply("partial", "So what does the test score tell you?", null, {
+      teaching: "Think of the test score as an exam on questions the model never studied.",
+      nextMove: "build",
+    });
+
+    act(() => result.current.submit("Maybe train?"));
+    await waitFor(() => expect(result.current.messages).toHaveLength(before + 2));
+
+    expect(result.current.messages.at(-1)?.text).toBe(
+      [
+        "Feedback for partial.",
+        "Think of the test score as an exam on questions the model never studied.",
+        "So what does the test score tell you?",
+      ].join("\n\n"),
+    );
+  });
+
+  it("sends what the last question was for and the verdicts so far with each answer", async () => {
+    const { result } = await reachCheckPhase();
+    checkReply("partial", "Easier question?", null, { nextMove: "build" });
+    act(() => result.current.submit("Unsure."));
+    await waitFor(() => expect(result.current.messages.at(-1)?.text).toContain("Easier question?"));
+    expect(lastCheckBody()).toMatchObject({ move: "build", verdicts: [] });
+
+    checkReply("resolved", "Apply it here?", null, { nextMove: "check" });
+    act(() => result.current.submit("Got it."));
+    await waitFor(() => expect(result.current.messages.at(-1)?.text).toContain("Apply it here?"));
+    expect(lastCheckBody()).toMatchObject({ move: "build", verdicts: ["partial"] });
+
+    checkReply("resolved");
+    act(() => result.current.submit("Applied."));
+    await waitFor(() => expect(result.current.phase).toBe("done"));
+    expect(lastCheckBody()).toMatchObject({ move: "check", verdicts: ["partial", "resolved"] });
+  });
+
+  it("treats a simpler question from 'I'm lost' as a build step", async () => {
+    const { result } = await reachCheckPhase();
+    reply({ reply: "No problem, let's go smaller.", question: "What does 'test score' measure?" });
+    act(() => void result.current.assist("lost"));
+    await waitFor(() => expect(result.current.messages.at(-1)?.text).toContain("What does 'test score' measure?"));
+
+    checkReply("resolved");
+    act(() => result.current.submit("Performance on unseen data."));
+    await waitFor(() => expect(result.current.phase).toBe("done"));
+    expect(lastCheckBody().move).toBe("build");
   });
 });

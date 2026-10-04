@@ -4,6 +4,7 @@ import {
   getMisconceptionsForConcept,
 } from "@/lib/learning/misconceptions";
 import type { Concept, Misconception } from "@/lib/learning/types";
+import type { ChatMove } from "@/lib/llm/schemas";
 import { CHAT_HISTORY_LIMIT, MAX_CHAT_TURNS } from "@/lib/learning/v2/chatFlow";
 import { generateStructured, llmErrorResponse, parseBody } from "@/lib/llm/client";
 import { checkRateLimit } from "@/lib/llm/rate-limit";
@@ -186,6 +187,8 @@ export async function POST(request: Request) {
         turn: data.turn,
         maxTurns: MAX_CHAT_TURNS,
         attempt: data.attempt,
+        move: data.move,
+        verdicts: data.verdicts,
       }),
       schema: chatCheckOutputSchema,
     });
@@ -208,16 +211,37 @@ export async function POST(request: Request) {
       feedback = guarded.feedback ?? feedback;
       hint = guarded.hint;
     }
+    // The model is told when to stop, but the cap is enforced here. While a
+    // hint is out, the learner retries the same question.
+    const nextProbeQuestion =
+      hint !== null || data.turn >= MAX_CHAT_TURNS
+        ? null
+        : scrubNullable(result.nextProbeQuestion, conceptMisconceptions);
+
+    // The flow rules are enforced here too, not only asked of the model: no
+    // challenging a learner who has not answered correctly, and no jumping
+    // from building straight to challenging without a check in between.
+    let nextMove: ChatMove | null = null;
+    if (nextProbeQuestion !== null) {
+      nextMove = result.nextMove ?? "check";
+      if (result.verdict !== "resolved") nextMove = "build";
+      else if (nextMove === "challenge" && data.move === "build") nextMove = "check";
+    }
+
+    // Teaching only accompanies a "build" question, and never on a first-try
+    // miss, where the learner retries and the answer must stay hidden.
+    const teaching =
+      nextMove === "build" && (result.verdict === "resolved" || data.attempt > 1)
+        ? scrubNullable(result.teaching ?? null, conceptMisconceptions)
+        : null;
+
     return Response.json({
       verdict: result.verdict,
       feedback,
       hint,
-      // The model is told when to stop, but the cap is enforced here. While a
-      // hint is out, the learner retries the same question.
-      nextProbeQuestion:
-        hint !== null || data.turn >= MAX_CHAT_TURNS
-          ? null
-          : scrubNullable(result.nextProbeQuestion, conceptMisconceptions),
+      teaching,
+      nextMove,
+      nextProbeQuestion,
     });
   } catch (error) {
     return llmErrorResponse(error);

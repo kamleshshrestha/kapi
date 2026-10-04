@@ -10,7 +10,7 @@ Kapi (formerly Learning Debugger) — a web app that helps beginner machine-lear
 
 The learner experience is a chat-first session with flashcards, available for all six catalog concepts (gradient descent, backpropagation, overfitting, train/test split, linear regression and logistic regression). It is served from the root (the earlier quiz-style v1 flow has been removed; the old `/v2/...` URLs redirect to the root ones via `next.config.ts`, and the `v2` names in the API path, component/lib folders and localStorage keys are kept so stored learner data doesn't change). A concept in `lib/learning/concepts.ts` without misconceptions has no Core flashcards and the chat cannot diagnose it. Unit tests run with Vitest.
 
-Learner flow: pick a concept (`/`) → explain it in your own words in a chat with Kapi → the LLM finds the specific gap (or compliments a strong explanation and challenges it) → a progressive conversation of up to 5 questions, with hints before reveals and help chips (hint / "I'm lost" / explain differently) → a recap at the end. Resolved ideas and shaky ideas are saved as personal flashcards ("From you" deck, alongside the catalog-derived "Core" deck at `/decks/[concept]`). A too-thin first explanation falls back to the first diagnostic question's options as quick replies.
+Learner flow: pick a concept (`/`) → explain it in your own words in a chat with Kapi → the LLM finds the specific gap (or compliments a strong explanation and challenges it) → an adaptive conversation of up to 7 questions that builds the learner up (small teaching pieces, easy guiding questions) before checking and only then challenging, with hints before reveals and help chips (hint / "I'm lost" / explain differently) → a recap at the end. Resolved ideas and shaky ideas are saved as personal flashcards ("From you" deck, alongside the catalog-derived "Core" deck at `/decks/[concept]`). A too-thin first explanation falls back to the first diagnostic question's options as quick replies.
 
 ## Commands
 
@@ -58,6 +58,13 @@ Conventions:
 - Diagnostic content rules (enforced by `tests/lib/learning/diagnostic.test.ts`): every question has exactly one correct option and its wrong options link to real misconceptions of the same concept; a concept has either both questions and misconceptions or neither; the correct answer's position varies within a concept; and the correct answer is not the longest option in more than half of a concept's questions, nor more than 60% longer than the longest wrong option (learners can otherwise guess "pick the longest").
 - `lib/learning/` stays pure (no React, no LLM) so it is easy to unit test; shared types live in `lib/learning/types.ts`.
 - Secrets go in `.env.local` (gitignored via `.env*`). It must contain `OPENROUTER_API_KEY` and may set `OPENROUTER_MODEL`; restart `pnpm dev` after changing it. Without a key the API routes return a 500 "AI service is not configured" error. The API routes have no auth, but each starts with `checkRateLimit(request)` (`lib/llm/rate-limit.ts`): an in-memory fixed-window limit per client address (`x-forwarded-for`/`x-real-ip`; default 20 requests per 10 min) plus a global cap (default 500 per hour), returning 429 with `Retry-After`. Tune with `RATE_LIMIT_MAX`, `RATE_LIMIT_WINDOW_SECONDS`, `RATE_LIMIT_GLOBAL_MAX`, `RATE_LIMIT_GLOBAL_WINDOW_SECONDS`. Counters are per server instance (reset on restart, not shared across serverless instances) and the address headers are only trustworthy behind a proxy that sets them, so this limits abuse of the API key rather than enforcing exact quotas. New LLM-backed routes must call it first.
+
+### Deployment
+
+- Deployed on Vercel (Next.js auto-detected, pnpm). `OPENROUTER_API_KEY` and optionally `OPENROUTER_MODEL` are set as Vercel environment variables, since `.env.local` is not deployed.
+- The in-memory rate limiter is per serverless instance, so on Vercel it rarely triggers and does not reliably protect the API key. A shared limiter (e.g. Upstash Redis) or Vercel WAF rate limiting would be needed for real protection.
+- Chat calls take ~10-15s with free models; if requests time out on Vercel, set `export const maxDuration` on `app/api/v2/chat/route.ts` (check the plan's limits).
+- Learner data lives in browser localStorage, so there is no database to provision.
 
 ### Framework notes
 
