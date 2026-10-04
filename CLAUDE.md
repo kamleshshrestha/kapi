@@ -59,6 +59,13 @@ Conventions:
 - `lib/learning/` stays pure (no React, no LLM) so it is easy to unit test; shared types live in `lib/learning/types.ts`.
 - Secrets go in `.env.local` (gitignored via `.env*`). It must contain `OPENROUTER_API_KEY` and may set `OPENROUTER_MODEL`; restart `pnpm dev` after changing it. Without a key the API routes return a 500 "AI service is not configured" error. The API routes have no auth, but each starts with `checkRateLimit(request)` (`lib/llm/rate-limit.ts`): an in-memory fixed-window limit per client address (`x-forwarded-for`/`x-real-ip`; default 20 requests per 10 min) plus a global cap (default 500 per hour), returning 429 with `Retry-After`. Tune with `RATE_LIMIT_MAX`, `RATE_LIMIT_WINDOW_SECONDS`, `RATE_LIMIT_GLOBAL_MAX`, `RATE_LIMIT_GLOBAL_WINDOW_SECONDS`. Counters are per server instance (reset on restart, not shared across serverless instances) and the address headers are only trustworthy behind a proxy that sets them, so this limits abuse of the API key rather than enforcing exact quotas. New LLM-backed routes must call it first.
 
+### Deployment
+
+- Deployed on Vercel (Next.js auto-detected, pnpm). `OPENROUTER_API_KEY` and optionally `OPENROUTER_MODEL` are set as Vercel environment variables, since `.env.local` is not deployed.
+- The in-memory rate limiter is per serverless instance, so on Vercel it rarely triggers and does not reliably protect the API key. A shared limiter (e.g. Upstash Redis) or Vercel WAF rate limiting would be needed for real protection.
+- Chat calls take ~10-15s with free models; if requests time out on Vercel, set `export const maxDuration` on `app/api/v2/chat/route.ts` (check the plan's limits).
+- Learner data lives in browser localStorage, so there is no database to provision.
+
 ### Framework notes
 
 - `app/layout.tsx` defines the root layout and loads the Geist font pair via `next/font/google`.
