@@ -11,9 +11,18 @@ import {
 } from "@/lib/learning/v2/personalCards";
 import { CHAT_HISTORY_LIMIT, MAX_CHAT_TURNS } from "@/lib/learning/v2/chatFlow";
 import type { ChatMessage, ChatSessionPhase } from "@/lib/learning/v2/types";
+import type { ChatMove } from "@/lib/llm/schemas";
 
 /** Below this, there isn't enough to diagnose from — skip the LLM call. */
 const THIN_EXPLANATION_MIN_LENGTH = 15;
+
+/** One chat message from several pieces: blank-separated paragraphs, empty pieces dropped. */
+function paragraphs(...parts: (string | null | undefined)[]): string {
+  return parts
+    .map((p) => p?.trim())
+    .filter(Boolean)
+    .join("\n\n");
+}
 
 async function postJson<T>(url: string, body: unknown): Promise<T> {
   let response: Response;
@@ -48,6 +57,9 @@ type CheckResponse = {
   verdict: Verdict;
   feedback: string;
   hint: string | null;
+  /** A small piece of teaching that comes before a "build" question. */
+  teaching: string | null;
+  nextMove: ChatMove | null;
   nextProbeQuestion: string | null;
 };
 
@@ -84,6 +96,10 @@ export function useV2ChatSession(
   // explanation was strong and Kapi is challenging it rather than fixing a gap.
   const [misconceptionId, setMisconceptionId] = useState<string | null>(null);
   const [probeQuestion, setProbeQuestion] = useState<string | null>(null);
+  // What the current question is for: a gap starts by building up the learner's
+  // understanding, a strong explanation starts with a challenge. The server
+  // picks each later step from how the learner is doing.
+  const [move, setMove] = useState<ChatMove>("build");
   const [turn, setTurn] = useState(1);
   // 1 on a fresh question, 2 once a hint has been given for it.
   const [attempt, setAttempt] = useState(1);
@@ -134,11 +150,16 @@ export function useV2ChatSession(
         explanation: text,
       });
 
-      append("kapi", [result.reasoning, result.explanation].filter(Boolean).join(" "));
-      if (result.example || result.takeaway) {
-        append("kapi", [result.example, result.takeaway].filter(Boolean).join(" "));
-      }
-      if (result.probeQuestion) append("kapi", result.probeQuestion);
+      // One message, like a tutor talking: the reaction and fix, the example,
+      // then the question, as paragraphs rather than separate bubbles.
+      append(
+        "kapi",
+        paragraphs(
+          [result.reasoning, result.explanation].filter(Boolean).join(" "),
+          [result.example, result.takeaway].filter(Boolean).join(" "),
+          result.probeQuestion,
+        ),
+      );
 
       // No question to ask (model had nothing to probe): the chat is over.
       if (!result.probeQuestion) {
@@ -160,6 +181,7 @@ export function useV2ChatSession(
 
       setMisconceptionId(result.misconceptionId);
       setProbeQuestion(result.probeQuestion);
+      setMove(result.misconceptionId ? "build" : "challenge");
       setTurn(1);
       setAttempt(1);
       setPhase("await-check-answer");
@@ -213,14 +235,14 @@ export function useV2ChatSession(
         history,
         turn,
         attempt,
+        move,
+        verdicts,
       });
-      append("kapi", result.feedback);
-
       const resolved = result.verdict === "resolved";
 
       // First miss: nudge instead of revealing, and let them retry this question.
       if (result.hint && !resolved && attempt === 1) {
-        append("kapi", result.hint);
+        append("kapi", paragraphs(result.feedback, result.hint));
         setAttempt(2);
         return;
       }
@@ -257,8 +279,9 @@ export function useV2ChatSession(
 
       const next = turn >= MAX_CHAT_TURNS ? null : result.nextProbeQuestion;
       if (next) {
-        append("kapi", next);
+        append("kapi", paragraphs(result.feedback, result.teaching, next));
         setProbeQuestion(next);
+        setMove(result.nextMove ?? "check");
         setTurn((t) => t + 1);
         setAttempt(1);
         return;
@@ -266,13 +289,11 @@ export function useV2ChatSession(
 
       // Wrapping up. Only a session that started from a gap is remembered for
       // the welcome-back opener and only a still-open gap gets the "come back".
-      let closing: ChatMessage[] = [];
+      let closing: string | null = null;
       if (misconceptionId) {
         if (!everResolved) {
-          const text =
+          closing =
             "No worries — let's come back to this one later. You can review it anytime from your flashcards.";
-          append("kapi", text);
-          closing = [{ role: "kapi", text }];
         }
         writeLastSession(conceptId, {
           misconceptionId,
@@ -281,14 +302,11 @@ export function useV2ChatSession(
           at: new Date().toISOString(),
         });
       }
+      const wrapUp = paragraphs(result.feedback, closing);
+      append("kapi", wrapUp);
       setPhase("done");
       void requestSummary(
-        [
-          ...messages,
-          { role: "learner", text },
-          { role: "kapi", text: result.feedback },
-          ...closing,
-        ],
+        [...messages, { role: "learner", text }, { role: "kapi", text: wrapUp }],
         allVerdicts,
       );
     } catch (e) {
@@ -319,10 +337,10 @@ export function useV2ChatSession(
         probeQuestion,
         history,
       });
-      append("kapi", result.reply);
+      append("kapi", paragraphs(result.reply, result.question));
       if (result.question) {
-        append("kapi", result.question);
         setProbeQuestion(result.question);
+        setMove("build");
         setAttempt(1);
       }
     } catch (e) {

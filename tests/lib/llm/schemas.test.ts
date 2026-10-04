@@ -12,7 +12,7 @@ const good =
 describe("chatCheckOutputSchema feedback", () => {
   it("accepts real sentences", () => {
     expect(
-      chatCheckOutputSchema.safeParse({ verdict: "resolved", feedback: good, nextProbeQuestion: null, hint: null }).success,
+      chatCheckOutputSchema.safeParse({ verdict: "resolved", feedback: good, nextProbeQuestion: null, nextMove: null, teaching: null, hint: null }).success,
     ).toBe(true);
   });
 
@@ -23,6 +23,8 @@ describe("chatCheckOutputSchema feedback", () => {
         verdict: "resolved",
         feedback,
         nextProbeQuestion: null,
+        nextMove: null,
+        teaching: null,
         hint: null,
       });
       expect(result.success).toBe(false);
@@ -50,8 +52,8 @@ describe("chat feedback that is only the verdict word", () => {
   it("is re-asked, and the model is told why", async () => {
     const fetchMock = vi
       .fn()
-      .mockResolvedValueOnce(reply({ verdict: "resolved", feedback: "resolved", nextProbeQuestion: null, hint: null }))
-      .mockResolvedValueOnce(reply({ verdict: "resolved", feedback: good, nextProbeQuestion: null, hint: null }));
+      .mockResolvedValueOnce(reply({ verdict: "resolved", feedback: "resolved", nextProbeQuestion: null, nextMove: null, teaching: null, hint: null }))
+      .mockResolvedValueOnce(reply({ verdict: "resolved", feedback: good, nextProbeQuestion: null, nextMove: null, teaching: null, hint: null }));
     vi.stubGlobal("fetch", fetchMock);
 
     const result = await generateStructured({
@@ -64,6 +66,8 @@ describe("chat feedback that is only the verdict word", () => {
       verdict: "resolved",
       feedback: good,
       nextProbeQuestion: null,
+      nextMove: null,
+      teaching: null,
       hint: null,
     });
     expect(fetchMock).toHaveBeenCalledTimes(2);
@@ -82,10 +86,36 @@ describe("chatCheckPrompt", () => {
     turn: 1,
     maxTurns: 5,
     attempt: 1,
+    move: "build" as const,
+    verdicts: ["unresolved"],
   });
 
   it("asks for full sentences, not just the verdict word", () => {
     expect(system).toMatch(/never just the verdict word/i);
+  });
+
+  it("describes the build, check and challenge steps and forbids challenging a learner who is unsure", () => {
+    expect(system).toMatch(/- build:/);
+    expect(system).toMatch(/- check:/);
+    expect(system).toMatch(/- challenge:/);
+    expect(system).toMatch(/never challenge a learner who is still unsure/i);
+  });
+
+  it("tells the model what the last question was for and how the learner has done", () => {
+    const { user, system: s2 } = chatCheckPrompt({
+      concept: getConcept("backpropagation")!,
+      misconception: null,
+      question: "q",
+      answer: "a",
+      history: [],
+      turn: 2,
+      maxTurns: 7,
+      attempt: 1,
+      move: "check",
+      verdicts: ["partial", "resolved"],
+    });
+    expect(user).toContain('Question just asked (a "check" step): q');
+    expect(s2).toContain("partial, resolved");
   });
 
   it("tells the model to credit only what the learner actually wrote", () => {

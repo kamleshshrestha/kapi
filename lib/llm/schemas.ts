@@ -18,6 +18,17 @@ const chatHistoryMessageSchema = z.object({
   text: z.string().max(3000),
 });
 
+/**
+ * What a question is for. "build": the learner is missing or shaky on an idea,
+ * so Kapi teaches a small piece and asks an easy guiding question. "check":
+ * confirm the basics by applying them in a plain scenario. "challenge":
+ * analytical or edge-case questions, only once the basics are shown.
+ */
+export const chatMoves = ["build", "check", "challenge"] as const;
+export type ChatMove = (typeof chatMoves)[number];
+
+const chatVerdictSchema = z.enum(["resolved", "partial", "unresolved"]);
+
 export const chatCheckRequestSchema = z.object({
   conceptId: id,
   phase: z.literal("check"),
@@ -31,6 +42,10 @@ export const chatCheckRequestSchema = z.object({
   turn: z.number().int().min(1).max(20),
   /** 1 on the first try at this question; 2 once a hint has been given. */
   attempt: z.number().int().min(1).max(2).default(1),
+  /** What the question being answered was for. */
+  move: z.enum(chatMoves).default("build"),
+  /** Verdict on each earlier answer, in order, so Kapi can read the learner's progress. */
+  verdicts: z.array(chatVerdictSchema).max(20).default([]),
 });
 
 /** The learner asking for help instead of answering. */
@@ -51,7 +66,7 @@ export const chatSummaryRequestSchema = z.object({
   misconceptionId: id.nullable(),
   history: z.array(chatHistoryMessageSchema).max(30),
   /** Verdict on each answer the learner gave, in order. */
-  verdicts: z.array(z.enum(["resolved", "partial", "unresolved"])).max(20),
+  verdicts: z.array(chatVerdictSchema).max(20),
 });
 
 export const chatTurnRequestSchema = z.discriminatedUnion("phase", [
@@ -77,14 +92,21 @@ export function chatDiagnoseOutputSchema(misconceptionIds: string[]) {
 }
 
 export const chatCheckOutputSchema = z.object({
-  verdict: z.enum(["resolved", "partial", "unresolved"]),
+  verdict: chatVerdictSchema,
   feedback: z
     .string()
     .refine((text) => text.trim().length >= 20, {
       message:
-        "feedback must be two or three full sentences for the learner, not just the verdict word",
+        "feedback must be one to three full sentences for the learner, not just the verdict word",
     }),
-  /** null when resolved; a fresh, different scenario otherwise. */
+  /**
+   * Teaches one small piece before the next question; only for a "build"
+   * move, where the learner is missing or shaky on an idea. Otherwise null.
+   */
+  teaching: z.string().nullable(),
+  /** What the next question is for; null when there is no next question. */
+  nextMove: z.enum(chatMoves).nullable(),
+  /** The next question, or null when the conversation is complete. */
   nextProbeQuestion: z.string().nullable(),
   /**
    * A one-sentence nudge, set instead of revealing the answer when a first

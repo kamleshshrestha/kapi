@@ -154,6 +154,8 @@ describe("POST /api/v2/chat check phase", () => {
       verdict: "partial",
       feedback: "You are close, but consider a model with low train error too.",
       hint: null,
+      teaching: null,
+      nextMove: "build",
       nextProbeQuestion: "What if train and test scores are both low?",
     });
   });
@@ -182,8 +184,8 @@ describe("POST /api/v2/chat check phase", () => {
 
     const { user, system } = mockedGenerate.mock.calls[0][0];
     expect(user).toContain("Learner: The training score is the one that matters.");
-    expect(user).toContain(`Question just asked: ${checkBody.probeQuestion}`);
-    expect(system).toContain("question 2 of at most 5");
+    expect(user).toContain(`Question just asked (a "build" step): ${checkBody.probeQuestion}`);
+    expect(system).toContain("question 2 of at most 7");
   });
 
   it("forces the conversation to end on the final turn even if the model asks more", async () => {
@@ -193,7 +195,7 @@ describe("POST /api/v2/chat check phase", () => {
       nextProbeQuestion: "One more?",
     });
 
-    const json = await (await post({ ...checkBody, turn: 5 })).json();
+    const json = await (await post({ ...checkBody, turn: 7 })).json();
 
     expect(json.nextProbeQuestion).toBeNull();
   });
@@ -551,5 +553,101 @@ describe("POST /api/v2/chat upstream failures", () => {
 
     const response = await post(checkBody);
     expect(response.status).toBe(502);
+  });
+});
+
+describe("POST /api/v2/chat build, check, challenge flow", () => {
+  const next = {
+    feedback: "You've got the idea that the test score matters here.",
+    hint: null,
+    nextProbeQuestion: "What happens with a tiny test set?",
+  };
+
+  it("never challenges a learner who has not answered correctly, and builds instead", async () => {
+    mockedGenerate.mockResolvedValue({
+      ...next,
+      verdict: "partial",
+      nextMove: "challenge",
+      teaching: "A tiny test set gives a noisy score.",
+    });
+
+    const json = await (await post({ ...checkBody, attempt: 2, move: "check" })).json();
+
+    expect(json.nextMove).toBe("build");
+    expect(json.teaching).toBe("A tiny test set gives a noisy score.");
+  });
+
+  it("does not jump from a build step straight to a challenge", async () => {
+    mockedGenerate.mockResolvedValue({
+      ...next,
+      verdict: "resolved",
+      nextMove: "challenge",
+      teaching: null,
+    });
+
+    const json = await (await post({ ...checkBody, move: "build" })).json();
+
+    expect(json.nextMove).toBe("check");
+  });
+
+  it("lets a learner who answered a check step well move on to a challenge", async () => {
+    mockedGenerate.mockResolvedValue({
+      ...next,
+      verdict: "resolved",
+      nextMove: "challenge",
+      teaching: "ignored, only build steps teach",
+    });
+
+    const json = await (await post({ ...checkBody, move: "check" })).json();
+
+    expect(json.nextMove).toBe("challenge");
+    expect(json.teaching).toBeNull();
+  });
+
+  it("withholds teaching on a first-try miss, where the hint must not give the answer away", async () => {
+    mockedGenerate
+      .mockResolvedValueOnce({
+        ...next,
+        verdict: "unresolved",
+        hint: "Which score can't be memorised?",
+        nextMove: "build",
+        teaching: "The test score is the honest one.",
+      })
+      .mockResolvedValueOnce({ leaks: false, feedback: null, hint: "Which score can't be memorised?" });
+
+    const json = await (await post(checkBody)).json();
+
+    expect(json.teaching).toBeNull();
+    expect(json.nextMove).toBeNull();
+    expect(json.nextProbeQuestion).toBeNull();
+  });
+
+  it("has no next move or teaching when the conversation ends", async () => {
+    mockedGenerate.mockResolvedValue({
+      ...next,
+      verdict: "resolved",
+      nextProbeQuestion: null,
+      nextMove: "challenge",
+      teaching: "x",
+    });
+
+    const json = await (await post({ ...checkBody, move: "check" })).json();
+
+    expect(json.nextMove).toBeNull();
+    expect(json.teaching).toBeNull();
+  });
+
+  it("tells the model what the last question was for and the verdicts so far", async () => {
+    mockedGenerate.mockResolvedValue({ ...next, verdict: "resolved", nextMove: "check", teaching: null });
+
+    await post({ ...checkBody, move: "check", verdicts: ["partial", "resolved"] });
+
+    const { user, system } = mockedGenerate.mock.calls[0][0];
+    expect(user).toContain('Question just asked (a "check" step)');
+    expect(system).toContain("partial, resolved");
+  });
+
+  it("rejects an unknown move", async () => {
+    expect((await post({ ...checkBody, move: "interrogate" })).status).toBe(400);
   });
 });
