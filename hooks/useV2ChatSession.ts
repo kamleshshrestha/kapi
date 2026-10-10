@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { getMisconception } from "@/lib/learning/misconceptions";
 import { pickOpener, welcomeBackOpener } from "@/lib/learning/v2/openers";
 import { readLastSession, writeLastSession } from "@/lib/learning/v2/localSession";
@@ -114,9 +114,17 @@ export function useV2ChatSession(
   // left untouched, so replaying it sends exactly what was sent before.
   const [failedAction, setFailedAction] = useState<{ run: () => void } | null>(null);
 
+  // Groups this chat's events in the opt-in log (the server stores nothing
+  // unless the learner has opted in). Created on first use, renewed per concept.
+  const sessionIdRef = useRef<string | undefined>(undefined);
+  function getSessionId() {
+    return (sessionIdRef.current ??= crypto.randomUUID());
+  }
+
   // Instant opener: reads localStorage and picks/templates a cached line.
   // No API call, so there is nothing to wait on before this appears.
   useEffect(() => {
+    sessionIdRef.current = undefined;
     const last = readLastSession(conceptId);
     const opener = last
       ? welcomeBackOpener(conceptTitle, last)
@@ -148,6 +156,7 @@ export function useV2ChatSession(
         conceptId,
         phase: "diagnose",
         explanation: text,
+        sessionId: getSessionId(),
       });
 
       // One message, like a tutor talking: the reaction and fix, the example,
@@ -229,6 +238,7 @@ export function useV2ChatSession(
       const result = await postJson<CheckResponse>("/api/v2/chat", {
         conceptId,
         phase: "check",
+        sessionId: getSessionId(),
         misconceptionId,
         probeQuestion,
         answer: text,

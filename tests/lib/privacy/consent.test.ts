@@ -1,21 +1,26 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const limit = vi.fn();
-const insert = vi.fn();
+const { limit, insert, gte } = vi.hoisted(() => ({
+  limit: vi.fn(),
+  insert: vi.fn(),
+  gte: vi.fn(),
+}));
 vi.mock("@/lib/supabase/client", () => ({
   createClient: () => ({
     from: () => ({
       select: () => ({ eq: () => ({ order: () => ({ limit }) }) }),
       insert,
+      delete: () => ({ gte }),
     }),
   }),
 }));
 
-import { hasConsent, recordConsent, POLICY_VERSION } from "@/lib/privacy/consent";
+import { eraseLog, hasConsent, recordConsent, POLICY_VERSION } from "@/lib/privacy/consent";
 
 beforeEach(() => {
   limit.mockReset();
   insert.mockReset();
+  gte.mockReset();
 });
 
 describe("hasConsent", () => {
@@ -50,5 +55,16 @@ describe("recordConsent", () => {
   it("returns false when the insert fails", async () => {
     insert.mockResolvedValue({ error: { message: "x" } });
     expect(await recordConsent("product_improvement", false)).toBe(false);
+  });
+});
+
+describe("eraseLog", () => {
+  it("deletes the learner's log rows and reports success or failure", async () => {
+    gte.mockResolvedValue({ error: null });
+    expect(await eraseLog()).toBe(true);
+    gte.mockResolvedValue({ error: { message: "x" } });
+    expect(await eraseLog()).toBe(false);
+    gte.mockRejectedValue(new Error("offline"));
+    expect(await eraseLog()).toBe(false);
   });
 });

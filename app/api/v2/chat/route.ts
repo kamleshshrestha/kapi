@@ -24,6 +24,7 @@ import {
   leakCheckOutputSchema,
 } from "@/lib/llm/schemas";
 import { scrubMisconceptionIds } from "@/lib/llm/scrub";
+import { logChatEvent } from "@/lib/privacy/eventLog";
 
 function scrubNullable(
   text: string | null,
@@ -99,6 +100,15 @@ export async function POST(request: Request) {
           explanation: data.explanation,
         }),
         schema: chatDiagnoseOutputSchema(misconceptions.map((m) => m.id)),
+      });
+
+      logChatEvent({
+        sessionId: data.sessionId,
+        conceptId: concept.id,
+        turn: 0,
+        misconceptionId: result.primaryMisconceptionId,
+        result: "diagnosed",
+        learnerText: data.explanation,
       });
 
       return Response.json({
@@ -234,6 +244,15 @@ export async function POST(request: Request) {
       nextMove === "build" && (result.verdict === "resolved" || data.attempt > 1)
         ? scrubNullable(result.teaching ?? null, conceptMisconceptions)
         : null;
+
+    logChatEvent({
+      sessionId: data.sessionId,
+      conceptId: concept.id,
+      turn: data.turn,
+      misconceptionId: data.misconceptionId,
+      result: result.verdict === "resolved" ? "correct" : hint !== null ? "hinted" : "revealed",
+      learnerText: data.answer,
+    });
 
     return Response.json({
       verdict: result.verdict,

@@ -4,6 +4,8 @@ import { z } from "zod";
 
 const id = z.string().min(1).max(100);
 const freeText = z.string().trim().min(1).max(2000);
+/** Groups one chat session's events in the opt-in log; optional, and unused without consent. */
+const sessionId = z.string().uuid().optional();
 
 // --- v2 chat session ---------------------------------------------------
 
@@ -11,6 +13,7 @@ export const chatDiagnoseRequestSchema = z.object({
   conceptId: id,
   phase: z.literal("diagnose"),
   explanation: freeText,
+  sessionId,
 });
 
 const chatHistoryMessageSchema = z.object({
@@ -32,6 +35,7 @@ const chatVerdictSchema = z.enum(["resolved", "partial", "unresolved"]);
 export const chatCheckRequestSchema = z.object({
   conceptId: id,
   phase: z.literal("check"),
+  sessionId,
   /** null when the learner's explanation was strong and Kapi is challenging it. */
   misconceptionId: id.nullable(),
   probeQuestion: z.string().trim().min(1).max(1000),

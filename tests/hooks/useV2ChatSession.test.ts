@@ -157,6 +157,7 @@ describe("useV2ChatSession explanation phase", () => {
       conceptId: "overfitting",
       phase: "diagnose",
       explanation: LONG_TEXT,
+      sessionId: expect.stringMatching(/^[0-9a-f-]{36}$/),
     });
     // One Kapi message with paragraphs, not a separate bubble per piece.
     expect(result.current.messages.map((m) => m.text).slice(1)).toEqual([
@@ -270,6 +271,17 @@ describe("useV2ChatSession check phase", () => {
     expect(body.history.at(-1)).toMatchObject({ role: "kapi" });
     expect(body.history.at(-1).text).toMatch(/Train 99%, test 70%: is it good\?$/);
     expect(body.history[1]).toEqual({ role: "learner", text: LONG_TEXT });
+  });
+
+  it("sends the same session id with the diagnosis and every check, for the opt-in log", async () => {
+    const { result } = await reachCheckPhase();
+    checkReply("resolved", "Deeper question?");
+    act(() => result.current.submit("Test score matters."));
+    await waitFor(() => expect(result.current.phase).toBe("await-check-answer"));
+
+    const diagnoseId = lastBody("diagnose").sessionId;
+    expect(diagnoseId).toMatch(/^[0-9a-f-]{36}$/);
+    expect(lastCheckBody().sessionId).toBe(diagnoseId);
   });
 
   it("on resolved, saves a flashcard and records the session", async () => {
