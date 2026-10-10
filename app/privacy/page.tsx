@@ -60,8 +60,9 @@ export default function PrivacyPage() {
           Only if you switch it on below, and only with an account, Kapi keeps
           which gap was found, how each question went and a short excerpt of what
           you wrote, with emails, links and long numbers removed. It is used to
-          improve the questions and prompts. Your consent is recorded, you can
-          withdraw it at any time, and these records are deleted after 12 months.
+          improve the questions and prompts. Your consent is recorded and you can
+          withdraw it at any time; withdrawing also deletes what was kept. These
+          records are deleted after 12 months in any case.
         </p>
       </section>
 

@@ -38,3 +38,19 @@ export async function recordConsent(
     return false;
   }
 }
+
+/**
+ * Deletes every log row kept about this learner. Used when they withdraw
+ * consent, so withdrawing also removes what was already collected.
+ */
+export async function eraseLog(): Promise<boolean> {
+  try {
+    const { error } = await createClient()
+      .from("session_events")
+      .delete()
+      .gte("created_at", "1970-01-01");
+    return !error;
+  } catch {
+    return false;
+  }
+}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { hasConsent, recordConsent } from "@/lib/privacy/consent";
+import { eraseLog, hasConsent, recordConsent } from "@/lib/privacy/consent";
 import { getSupabaseConfig } from "@/lib/supabase/config";
 import { createClient } from "@/lib/supabase/client";
 import { isSyncEnabled, setSyncEnabled } from "@/lib/sync/enabled";
@@ -46,6 +46,8 @@ export default function DataControls() {
     if (!ok) {
       setImprove(!next);
       setMessage("Could not save that choice. Please try again.");
+    } else if (!next && !(await eraseLog())) {
+      setMessage("Your choice is saved, but earlier records could not be deleted. Please try again.");
     } else {
       setMessage(null);
     }
@@ -115,8 +117,8 @@ export default function DataControls() {
         <span>
           Help improve Kapi: let Kapi keep which gap was found, how each question
           went and a short excerpt of what I wrote (with emails, links and
-          numbers removed). Off unless I turn it on, and I can turn it off at
-          any time.
+          numbers removed). Off unless I turn it on. Turning it off stops this
+          and deletes what was kept.
         </span>
       </label>
 
