@@ -1,3 +1,5 @@
+import { emitLocalChange } from "./changeEvents";
+
 /**
  * Personalized flashcards, created the moment a misconception resolves in a
  * chat session (see useV2ChatSession) and shown as the "From you" deck
@@ -43,13 +45,22 @@ export function readPersonalCards(conceptId: string): PersonalCard[] {
  * Adds or replaces the card for a misconception (a later resolution
  * supersedes an earlier one) and returns the updated list.
  */
-function writeAll(conceptId: string, cards: PersonalCard[]) {
+/** Stores cards from the account without announcing them as a local change. */
+export function applyRemotePersonalCards(
+  conceptId: string,
+  cards: PersonalCard[],
+): void {
   if (typeof window === "undefined") return;
   try {
     window.localStorage.setItem(KEY_PREFIX + conceptId, JSON.stringify(cards));
   } catch {
     // Private browsing, quota exceeded, etc. — best effort only.
   }
+}
+
+function writeAll(conceptId: string, cards: PersonalCard[]) {
+  applyRemotePersonalCards(conceptId, cards);
+  emitLocalChange({ type: "personal-cards", conceptId, cards });
 }
 
 export function savePersonalCard(

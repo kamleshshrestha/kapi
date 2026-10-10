@@ -7,6 +7,7 @@ import Flashcard from "@/components/v2/Flashcard";
 import type { Flashcard as FlashcardType } from "@/lib/learning/v2/flashcards";
 import { readPersonalCards } from "@/lib/learning/v2/personalCards";
 import type { MasteryRating } from "@/lib/learning/v2/flashcardMastery";
+import { SYNCED_EVENT } from "@/lib/sync/enabled";
 
 const RATINGS: { value: MasteryRating; label: string }[] = [
   { value: "forgot", label: "Forgot" },
@@ -32,6 +33,10 @@ export default function FlashcardDeck({
     // Reads localStorage, unavailable during SSR — can't run during render.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setPersonalCards(readPersonalCards(conceptId));
+    // Account sync may have brought in cards from another device.
+    const reread = () => setPersonalCards(readPersonalCards(conceptId));
+    window.addEventListener(SYNCED_EVENT, reread);
+    return () => window.removeEventListener(SYNCED_EVENT, reread);
   }, [conceptId]);
 
   const cards = activeDeck === "core" ? coreCards : personalCards;

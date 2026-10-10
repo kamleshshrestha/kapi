@@ -8,6 +8,7 @@ import {
   type MasteryMap,
   type MasteryRating,
 } from "@/lib/learning/v2/flashcardMastery";
+import { SYNCED_EVENT } from "@/lib/sync/enabled";
 
 /**
  * Walks through `cards` once, then lets the learner requeue just the ones
@@ -24,6 +25,10 @@ export function useFlashcardDeck(conceptId: string, cards: Flashcard[]) {
     // Reads localStorage, unavailable during SSR — can't run during render.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setMastery(readMastery(conceptId));
+    // Account sync may have brought in ratings from another device.
+    const reread = () => setMastery(readMastery(conceptId));
+    window.addEventListener(SYNCED_EVENT, reread);
+    return () => window.removeEventListener(SYNCED_EVENT, reread);
   }, [conceptId]);
 
   const card = queue[index];

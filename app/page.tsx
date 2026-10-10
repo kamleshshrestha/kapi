@@ -1,5 +1,6 @@
 import Image from "next/image";
 import ConceptSelectorV2 from "@/components/v2/ConceptSelectorV2";
+import SyncNotice from "@/components/v2/SyncNotice";
 import { concepts } from "@/lib/learning/concepts";
 
 export default function V2Home() {
@@ -29,6 +30,8 @@ export default function V2Home() {
           specific gap in your understanding and help you close it.
         </p>
       </header>
+
+      <SyncNotice />
 
       <section aria-labelledby="pick-concept" className="flex flex-col gap-4">
         <h2 id="pick-concept" className="text-xl font-semibold">

@@ -1,3 +1,5 @@
+import { emitLocalChange } from "./changeEvents";
+
 /**
  * Per-card self-rating for flashcard review, kept in localStorage like the
  * rest of v2's session memory — per-browser, not per-person (no accounts
@@ -18,6 +20,16 @@ export function readMastery(conceptId: string): MasteryMap {
   }
 }
 
+/** Stores ratings from the account without announcing them as a local change. */
+export function applyRemoteMastery(conceptId: string, map: MasteryMap): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(KEY_PREFIX + conceptId, JSON.stringify(map));
+  } catch {
+    // Private browsing, quota exceeded, etc. — best effort only.
+  }
+}
+
 /** Writes one card's rating and returns the updated map. */
 export function writeMastery(
   conceptId: string,
@@ -25,12 +37,7 @@ export function writeMastery(
   rating: MasteryRating,
 ): MasteryMap {
   const next = { ...readMastery(conceptId), [cardId]: rating };
-  if (typeof window !== "undefined") {
-    try {
-      window.localStorage.setItem(KEY_PREFIX + conceptId, JSON.stringify(next));
-    } catch {
-      // Private browsing, quota exceeded, etc. — best effort only.
-    }
-  }
+  applyRemoteMastery(conceptId, next);
+  emitLocalChange({ type: "mastery", conceptId, cardId, rating });
   return next;
 }

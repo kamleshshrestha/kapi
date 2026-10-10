@@ -1,8 +1,10 @@
+import { emitLocalChange } from "./changeEvents";
+
 /**
  * Remembers the outcome of the last chat session per concept, so a returning
- * learner gets a "welcome back" opener instead of starting cold. There is no
- * accounts system yet, so this is per-browser (localStorage), not per-person:
- * it will not follow a learner across devices.
+ * learner gets a "welcome back" opener instead of starting cold. Kept in
+ * localStorage; if the learner turns on account sync (lib/sync/) it is also
+ * mirrored to their account, otherwise it stays per-browser.
  */
 export type LastSessionOutcome = {
   misconceptionId: string;
@@ -23,7 +25,8 @@ export function readLastSession(conceptId: string): LastSessionOutcome | null {
   }
 }
 
-export function writeLastSession(
+/** Stores an outcome from the account without announcing it as a local change. */
+export function applyRemoteLastSession(
   conceptId: string,
   outcome: LastSessionOutcome,
 ): void {
@@ -33,4 +36,12 @@ export function writeLastSession(
   } catch {
     // Private browsing, quota exceeded, etc. — best effort only.
   }
+}
+
+export function writeLastSession(
+  conceptId: string,
+  outcome: LastSessionOutcome,
+): void {
+  applyRemoteLastSession(conceptId, outcome);
+  emitLocalChange({ type: "last-session", conceptId, outcome });
 }
