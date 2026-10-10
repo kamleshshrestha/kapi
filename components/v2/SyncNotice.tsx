@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { getSupabaseConfig } from "@/lib/supabase/config";
 import {
@@ -35,6 +36,9 @@ export default function SyncNotice() {
     return (
       <p className="text-sm text-foreground/60">
         Your progress is saved to an account tied to this browser.{" "}
+        <Link href="/privacy" className="underline underline-offset-2 hover:text-foreground">
+          Your data
+        </Link>{" "}
         <button
           type="button"
           className="underline underline-offset-2 hover:text-foreground"
@@ -79,7 +83,10 @@ export default function SyncNotice() {
         Kapi can save your flashcards, your card ratings and the gap you last
         worked on to an anonymous account tied to this browser, so they are not
         lost if you clear your browsing data. No email or name is needed, and
-        your own chat messages are not saved. You can turn this off at any time.
+        your own chat messages are not saved. You can turn this off at any time.{" "}
+        <Link href="/privacy" className="underline underline-offset-2 hover:text-foreground">
+          Privacy details
+        </Link>
       </p>
       <div className="flex gap-3">
         <button
