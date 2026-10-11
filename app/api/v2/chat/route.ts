@@ -74,7 +74,7 @@ async function guardAgainstLeak(args: {
 }
 
 export async function POST(request: Request) {
-  const limited = checkRateLimit(request);
+  const limited = await checkRateLimit(request);
   if (limited) return limited;
 
   const body = await parseBody(request, chatTurnRequestSchema);

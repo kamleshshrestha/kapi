@@ -11,7 +11,7 @@ const TABLES = [
 
 /** GDPR access/portability: everything stored about the signed-in learner, as JSON. */
 export async function GET(request: Request) {
-  const limited = checkRateLimit(request);
+  const limited = await checkRateLimit(request);
   if (limited) return limited;
 
   const user = await getVerifiedUser();

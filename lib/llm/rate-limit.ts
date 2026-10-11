@@ -1,3 +1,7 @@
+import { createHmac } from "node:crypto";
+import { getVerifiedUser } from "@/lib/supabase/user";
+import { createRedisCounter } from "./rate-limit-redis";
+
 type Bucket = { count: number; resetAt: number };
 
 export type RateLimitResult =
@@ -71,23 +75,76 @@ export function getClientId(request: Request): string {
 
 // A full learning session makes 3 LLM calls, so the defaults allow about 6
 // sessions per client every 10 minutes. Override with the env vars below.
-const clientLimiter = createRateLimiter({
-  limit: numberFromEnv("RATE_LIMIT_MAX", 20),
-  windowMs: numberFromEnv("RATE_LIMIT_WINDOW_SECONDS", 600) * 1000,
-});
-const globalLimiter = createRateLimiter({
-  limit: numberFromEnv("RATE_LIMIT_GLOBAL_MAX", 500),
-  windowMs: numberFromEnv("RATE_LIMIT_GLOBAL_WINDOW_SECONDS", 3600) * 1000,
-});
+const clientLimit = numberFromEnv("RATE_LIMIT_MAX", 20);
+const clientWindowMs = numberFromEnv("RATE_LIMIT_WINDOW_SECONDS", 600) * 1000;
+const globalLimit = numberFromEnv("RATE_LIMIT_GLOBAL_MAX", 500);
+const globalWindowMs = numberFromEnv("RATE_LIMIT_GLOBAL_WINDOW_SECONDS", 3600) * 1000;
+
+// In-memory limiters: the only ones when Redis is not configured, and the
+// fallback when it can't be reached.
+const clientLimiter = createRateLimiter({ limit: clientLimit, windowMs: clientWindowMs });
+const globalLimiter = createRateLimiter({ limit: globalLimit, windowMs: globalWindowMs });
+
+const redis =
+  process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN
+    ? createRedisCounter({
+        url: process.env.UPSTASH_REDIS_REST_URL,
+        token: process.env.UPSTASH_REDIS_REST_TOKEN,
+      })
+    : null;
+
+/**
+ * Raw addresses are personal data, so only a salted hash is used as a key (and
+ * so ends up in Redis). Set RATE_LIMIT_SALT to your own secret value.
+ */
+function hashAddress(address: string): string {
+  return createHmac("sha256", process.env.RATE_LIMIT_SALT ?? "kapi-rate-limit")
+    .update(address)
+    .digest("hex")
+    .slice(0, 24);
+}
+
+let lastRedisWarning = 0;
+function warnRedisDown(error: unknown) {
+  const now = Date.now();
+  if (now - lastRedisWarning < 60_000) return;
+  lastRedisWarning = now;
+  console.warn("[rate-limit] Redis unavailable, using in-memory limits:", error);
+}
+
+/** Counts one hit in Redis when it is configured and reachable, else in memory. */
+async function hit(
+  scope: "client" | "global",
+  subject: string,
+  limit: number,
+  windowMs: number,
+  memory: ReturnType<typeof createRateLimiter>,
+): Promise<RateLimitResult> {
+  if (redis) {
+    try {
+      return await redis.hit(`kapi:rl:${scope}:${subject}`, limit, windowMs);
+    } catch (error) {
+      warnRedisDown(error);
+    }
+  }
+  return memory.check(subject);
+}
 
 /**
  * Call first in an LLM-backed route handler. Returns a 429 response when the
- * caller (or the whole app) is over its limit, otherwise null.
+ * caller (or the whole app) is over its limit, otherwise null. A signed-in
+ * learner is limited by their account, anyone else by address (hashed), and a
+ * global cap backs both up.
  */
-export function checkRateLimit(request: Request): Response | null {
+export async function checkRateLimit(request: Request): Promise<Response | null> {
+  const user = await getVerifiedUser();
+  const subject = user ? `u:${user.id}` : `i:${hashAddress(getClientId(request))}`;
+
   // Per-client first, so one abusive client cannot use up the global budget.
-  const result = clientLimiter.check(getClientId(request));
-  const overall = result.ok ? globalLimiter.check("global") : result;
+  const result = await hit("client", subject, clientLimit, clientWindowMs, clientLimiter);
+  const overall = result.ok
+    ? await hit("global", "all", globalLimit, globalWindowMs, globalLimiter)
+    : result;
   if (overall.ok) return null;
 
   const retryAfter = Math.ceil(overall.retryAfterMs / 1000);

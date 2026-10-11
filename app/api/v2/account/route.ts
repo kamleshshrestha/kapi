@@ -14,7 +14,7 @@ function isCrossSite(request: Request): boolean {
  * consents and log rows go with it.
  */
 export async function DELETE(request: Request) {
-  const limited = checkRateLimit(request);
+  const limited = await checkRateLimit(request);
   if (limited) return limited;
   if (isCrossSite(request)) {
     return Response.json({ error: "Forbidden." }, { status: 403 });
