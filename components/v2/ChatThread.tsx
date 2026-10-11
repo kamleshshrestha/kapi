@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ASSIST_ACTIONS, useV2ChatSession } from "@/hooks/useV2ChatSession";
 import AssistChips from "@/components/v2/AssistChips";
 import SessionSummary from "@/components/v2/SessionSummary";
+import FeedbackForm from "@/components/v2/FeedbackForm";
 import ChatBubble from "@/components/v2/ChatBubble";
 import ConceptLevels from "@/components/v2/ConceptLevels";
 import ChatInputBar from "@/components/v2/ChatInputBar";
@@ -70,6 +71,15 @@ export default function ChatThread({
           >
             <h2 className="text-lg font-semibold">Where you stand on {conceptTitle}</h2>
             <ConceptLevels conceptId={conceptId} showNext />
+          </section>
+        )}
+        {phase === "done" && (
+          <section
+            aria-label="Feedback"
+            className="flex flex-col gap-3 rounded-xl border border-foreground/10 p-6"
+          >
+            <h2 className="text-lg font-semibold">Quick feedback</h2>
+            <FeedbackForm conceptId={conceptId} />
           </section>
         )}
         {error && (

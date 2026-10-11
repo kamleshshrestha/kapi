@@ -67,6 +67,17 @@ export default function PrivacyPage() {
       </section>
 
       <section className="flex flex-col gap-3">
+        <h2 className={h2}>Feedback you send</h2>
+        <p className={p}>
+          If you send feedback (after a session or on the feedback page), Kapi
+          stores your answer, your comment with emails, links and long numbers
+          removed, and the concept. If you have an account it is attached to it, so
+          it is included in your download and deleted with your account; without
+          one it is stored with no identifier. It is deleted after 12 months.
+        </p>
+      </section>
+
+      <section className="flex flex-col gap-3">
         <h2 className={h2}>Where it is stored, and for how long</h2>
         <p className={p}>
           Account data is stored with Supabase in Frankfurt, and the app is hosted

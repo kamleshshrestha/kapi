@@ -152,3 +152,16 @@ export const leakCheckOutputSchema = z.object({
   /** Safe replacement hint when it leaked; the original otherwise. */
   hint: z.string(),
 });
+
+export const feedbackFoundGap = ["yes", "partly", "no"] as const;
+
+/** Learner feedback: an answer, a comment, or both (never neither). */
+export const feedbackRequestSchema = z
+  .object({
+    foundGap: z.enum(feedbackFoundGap).optional(),
+    comment: z.string().max(1000).optional(),
+    conceptId: z.string().max(64).optional(),
+  })
+  .refine((v) => v.foundGap !== undefined || (v.comment ?? "").trim() !== "", {
+    message: "Add an answer or a comment.",
+  });

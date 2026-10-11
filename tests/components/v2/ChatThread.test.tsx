@@ -77,7 +77,7 @@ describe("ChatThread", () => {
   it("swaps the input bar for a link to try another concept when done", () => {
     renderThread({ phase: "done" });
 
-    expect(screen.queryByRole("textbox")).toBeNull();
+    expect(screen.queryByPlaceholderText("Type your answer…")).toBeNull();
     expect(screen.getByRole("link", { name: "Try another concept" })).toHaveAttribute(
       "href",
       "/",
@@ -154,5 +154,13 @@ describe("ChatThread", () => {
   it("does not show it while the chat is still going", () => {
     renderThread({ phase: "await-check-answer" });
     expect(screen.queryByRole("heading", { name: /Where you stand/ })).toBeNull();
+  });
+
+  it("asks for feedback once the chat is done, not before", () => {
+    renderThread({ phase: "done" });
+    expect(screen.getByRole("heading", { name: "Quick feedback" })).toBeInTheDocument();
+    cleanup();
+    renderThread({ phase: "await-check-answer" });
+    expect(screen.queryByRole("heading", { name: "Quick feedback" })).toBeNull();
   });
 });
