@@ -5,6 +5,7 @@ import { ASSIST_ACTIONS, useV2ChatSession } from "@/hooks/useV2ChatSession";
 import AssistChips from "@/components/v2/AssistChips";
 import SessionSummary from "@/components/v2/SessionSummary";
 import ChatBubble from "@/components/v2/ChatBubble";
+import ConceptLevels from "@/components/v2/ConceptLevels";
 import ChatInputBar from "@/components/v2/ChatInputBar";
 import QuickReplyChips from "@/components/v2/QuickReplyChips";
 
@@ -61,6 +62,15 @@ export default function ChatThread({
             savedCards={savedCards}
             deckHref={`/decks/${conceptId}`}
           />
+        )}
+        {phase === "done" && (
+          <section
+            aria-label="Where you stand"
+            className="flex flex-col gap-3 rounded-xl border border-foreground/10 p-6"
+          >
+            <h2 className="text-lg font-semibold">Where you stand on {conceptTitle}</h2>
+            <ConceptLevels conceptId={conceptId} showNext />
+          </section>
         )}
         {error && (
           <div role="alert" className="flex items-center gap-2 text-red-600 dark:text-red-400">

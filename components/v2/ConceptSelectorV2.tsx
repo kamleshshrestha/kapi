@@ -1,4 +1,5 @@
 import Link from "next/link";
+import ConceptLevels from "@/components/v2/ConceptLevels";
 import type { Concept } from "@/lib/learning/types";
 import { getMisconceptionsForConcept } from "@/lib/learning/misconceptions";
 
@@ -33,6 +34,7 @@ export default function ConceptSelectorV2({
                 {concept.summary}
               </span>
             </Link>
+            <ConceptLevels conceptId={concept.id} compact hideWhenEmpty />
             {cardCount > 0 && (
               <Link
                 href={`/decks/${concept.id}`}
