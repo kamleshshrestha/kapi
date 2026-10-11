@@ -6,6 +6,7 @@ const TABLES = [
   "personal_cards",
   "card_mastery",
   "concept_levels",
+  "feedback",
   "consents",
   "session_events",
 ] as const;
