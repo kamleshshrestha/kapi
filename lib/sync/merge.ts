@@ -4,6 +4,7 @@ import {
   type PersonalCard,
 } from "@/lib/learning/v2/personalCards";
 import type { MasteryMap } from "@/lib/learning/v2/flashcardMastery";
+import type { ConceptLevels, EvidenceLevel } from "@/lib/learning/v2/levels";
 
 /** The newer of two outcomes (by `at`); a missing one loses. */
 export function mergeLastSession(
@@ -70,4 +71,36 @@ export function sameCards(a: PersonalCard[], b: PersonalCard[]): boolean {
 export function sameMastery(a: MasteryMap, b: MasteryMap): boolean {
   const keys = Object.keys(a);
   return keys.length === Object.keys(b).length && keys.every((k) => a[k] === b[k]);
+}
+
+const EVIDENCE_LEVELS: EvidenceLevel[] = ["explain", "apply", "defend"];
+
+/**
+ * Per level, the higher counts win (and the later time). Counts only ever
+ * grow, and the two sides share a history after every sync, so the larger one
+ * is the more complete; adding them would double-count on each startup. The
+ * cost: answers given on two devices at once between syncs can be undercounted.
+ */
+export function mergeLevels(local: ConceptLevels, remote: ConceptLevels): ConceptLevels {
+  const merged: ConceptLevels = {};
+  for (const level of EVIDENCE_LEVELS) {
+    const a = local[level];
+    const b = remote[level];
+    if (!a && !b) continue;
+    merged[level] = {
+      clean: Math.max(a?.clean ?? 0, b?.clean ?? 0),
+      helped: Math.max(a?.helped ?? 0, b?.helped ?? 0),
+      at: [a?.at, b?.at].filter((t): t is string => !!t).reduce((x, y) => (x > y ? x : y)),
+    };
+  }
+  return merged;
+}
+
+export function sameLevels(a: ConceptLevels, b: ConceptLevels): boolean {
+  return EVIDENCE_LEVELS.every((level) => {
+    const x = a[level];
+    const y = b[level];
+    if (!x || !y) return !x && !y;
+    return x.clean === y.clean && x.helped === y.helped && x.at === y.at;
+  });
 }

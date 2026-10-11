@@ -80,8 +80,8 @@ export default function SyncNotice() {
         Keep your progress safe?
       </h2>
       <p className="text-sm leading-6 text-foreground/70">
-        Kapi can save your flashcards, your card ratings and the gap you last
-        worked on to an anonymous account tied to this browser, so they are not
+        Kapi can save your flashcards, your card ratings, your levels and the gap
+        you last worked on to an anonymous account tied to this browser, so they are not
         lost if you clear your browsing data. No email or name is needed, and
         your own chat messages are not saved. You can turn this off at any time.{" "}
         <Link href="/privacy" className="underline underline-offset-2 hover:text-foreground">

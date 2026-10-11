@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import LevelStrip from "@/components/v2/LevelStrip";
 import { readConceptProgress } from "@/lib/learning/v2/levelStore";
+import { SYNCED_EVENT } from "@/lib/sync/enabled";
 import { nextStep, type LevelKey, type LevelState } from "@/lib/learning/v2/levels";
 
 /**
@@ -28,6 +29,10 @@ export default function ConceptLevels({
     // Reads localStorage, unavailable during SSR — can't run during render.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setStates(readConceptProgress(conceptId));
+    // Account sync may have brought in progress from another device.
+    const reread = () => setStates(readConceptProgress(conceptId));
+    window.addEventListener(SYNCED_EVENT, reread);
+    return () => window.removeEventListener(SYNCED_EVENT, reread);
   }, [conceptId]);
 
   if (!states) return null;

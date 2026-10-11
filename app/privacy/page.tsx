@@ -34,7 +34,7 @@ export default function PrivacyPage() {
         <h2 className={h2}>What Kapi stores, and why</h2>
         <p className={p}>
           By default, nothing about you is stored on a server. Your flashcards,
-          card ratings and the gap you last worked on stay in this browser.
+          card ratings, levels and the gap you last worked on stay in this browser.
         </p>
         <p className={p}>
           If you choose &ldquo;Save my progress&rdquo;, Kapi creates an anonymous account tied to this

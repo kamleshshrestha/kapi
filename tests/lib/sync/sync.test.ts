@@ -7,6 +7,7 @@ const remote = vi.hoisted(() => ({
   pushLastSession: vi.fn(),
   replaceCards: vi.fn(),
   pushMastery: vi.fn(),
+  pushLevels: vi.fn(),
 }));
 vi.mock("@/lib/sync/remote", () => remote);
 
@@ -14,9 +15,10 @@ import { hydrate, startPushing } from "@/lib/sync/sync";
 import { SYNCED_EVENT } from "@/lib/sync/enabled";
 import { readPersonalCards, savePersonalCard } from "@/lib/learning/v2/personalCards";
 import { readMastery, writeMastery } from "@/lib/learning/v2/flashcardMastery";
+import { readLevels, recordEvidence } from "@/lib/learning/v2/levelStore";
 
 const db = {} as SupabaseClient;
-const emptyRemote = { lastSessions: {}, cards: {}, mastery: {} };
+const emptyRemote = { lastSessions: {}, cards: {}, mastery: {}, levels: {} };
 
 beforeEach(() => {
   window.localStorage.clear();
@@ -24,6 +26,7 @@ beforeEach(() => {
   remote.pushLastSession.mockResolvedValue(undefined);
   remote.replaceCards.mockResolvedValue(undefined);
   remote.pushMastery.mockResolvedValue(undefined);
+  remote.pushLevels.mockResolvedValue(undefined);
 });
 
 describe("hydrate", () => {
@@ -47,6 +50,7 @@ describe("hydrate", () => {
         overfitting: [{ id: "personal:m", misconceptionId: "m", front: "q", back: "a", resolvedAt: "2026-01-01T00:00:00.000Z", kind: "resolved" }],
       },
       mastery: { overfitting: { "personal:m": "fuzzy" } },
+      levels: { overfitting: { apply: { clean: 2, helped: 0, at: "2026-01-01T00:00:00.000Z" } } },
     });
     const synced = vi.fn();
     window.addEventListener(SYNCED_EVENT, synced);
@@ -55,8 +59,10 @@ describe("hydrate", () => {
 
     expect(readPersonalCards("overfitting")).toHaveLength(1);
     expect(readMastery("overfitting")).toEqual({ "personal:m": "fuzzy" });
+    expect(readLevels("overfitting").apply).toMatchObject({ clean: 2, helped: 0 });
     expect(remote.replaceCards).not.toHaveBeenCalled();
     expect(remote.pushMastery).not.toHaveBeenCalled();
+    expect(remote.pushLevels).not.toHaveBeenCalled();
     expect(synced).toHaveBeenCalledTimes(1);
     window.removeEventListener(SYNCED_EVENT, synced);
   });
@@ -66,6 +72,35 @@ describe("hydrate", () => {
     remote.pullAll.mockRejectedValue(new Error("offline"));
     await expect(hydrate(db, "u1")).rejects.toThrow("offline");
     expect(readPersonalCards("overfitting")).toHaveLength(1);
+  });
+});
+
+describe("hydrate with levels", () => {
+  it("uploads levels earned before sync was turned on", async () => {
+    recordEvidence("overfitting", "explain", "clean");
+    recordEvidence("overfitting", "explain", "clean");
+    remote.pullAll.mockResolvedValue(emptyRemote);
+    remote.pushLevels.mockClear();
+
+    await hydrate(db, "u1");
+
+    expect(remote.pushLevels).toHaveBeenCalledWith(
+      db,
+      "u1",
+      "overfitting",
+      expect.objectContaining({ explain: expect.objectContaining({ clean: 2, helped: 0 }) }),
+    );
+  });
+
+  it("merges instead of overwriting: the higher counts win on both sides", async () => {
+    recordEvidence("overfitting", "apply", "clean"); // local: apply clean 1
+    remote.pullAll.mockResolvedValue({
+      ...emptyRemote,
+      levels: { overfitting: { apply: { clean: 3, helped: 0, at: "2099-01-01T00:00:00.000Z" } } },
+    });
+    await hydrate(db, "u1");
+    expect(readLevels("overfitting").apply).toMatchObject({ clean: 3 }); // account was ahead
+    expect(remote.pushLevels).not.toHaveBeenCalled(); // nothing for the account to learn
   });
 });
 
@@ -84,5 +119,17 @@ describe("startPushing", () => {
     stop();
     writeMastery("overfitting", "c2", "got-it");
     expect(remote.pushMastery).toHaveBeenCalledTimes(1);
+  });
+
+  it("mirrors new level evidence as the full levels for that concept", () => {
+    const stop = startPushing(db, "u1");
+    recordEvidence("overfitting", "defend", "helped");
+    expect(remote.pushLevels).toHaveBeenCalledWith(
+      db,
+      "u1",
+      "overfitting",
+      expect.objectContaining({ defend: expect.objectContaining({ clean: 0, helped: 1 }) }),
+    );
+    stop();
   });
 });

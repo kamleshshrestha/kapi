@@ -13,15 +13,24 @@ import {
   readMastery,
   applyRemoteMastery,
 } from "@/lib/learning/v2/flashcardMastery";
+import { readLevels, applyRemoteLevels } from "@/lib/learning/v2/levelStore";
 import { SYNCED_EVENT } from "./enabled";
 import {
   mergeCards,
   mergeLastSession,
+  mergeLevels,
   mergeMastery,
   sameCards,
+  sameLevels,
   sameMastery,
 } from "./merge";
-import { pullAll, pushLastSession, pushMastery, replaceCards } from "./remote";
+import {
+  pullAll,
+  pushLastSession,
+  pushLevels,
+  pushMastery,
+  replaceCards,
+} from "./remote";
 
 /**
  * Merges the account's state with this browser's, writes the result locally
@@ -57,6 +66,14 @@ export async function hydrate(db: SupabaseClient, userId: string): Promise<void>
     if (!sameMastery(mastery, remoteMastery)) {
       await pushMastery(db, userId, conceptId, mastery);
     }
+
+    const localLevels = readLevels(conceptId);
+    const remoteLevels = remote.levels[conceptId] ?? {};
+    const levels = mergeLevels(localLevels, remoteLevels);
+    if (!sameLevels(levels, localLevels)) applyRemoteLevels(conceptId, levels);
+    if (!sameLevels(levels, remoteLevels)) {
+      await pushLevels(db, userId, conceptId, levels);
+    }
   }
 
   if (typeof window !== "undefined") {
@@ -81,6 +98,8 @@ export function startPushing(db: SupabaseClient, userId: string): () => void {
           return pushMastery(db, userId, change.conceptId, {
             [change.cardId]: change.rating,
           });
+        case "levels":
+          return pushLevels(db, userId, change.conceptId, change.levels);
       }
     })();
     push.catch(() => {});
