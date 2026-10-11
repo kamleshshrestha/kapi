@@ -188,3 +188,20 @@ describe("llmErrorResponse", () => {
     expect(JSON.stringify(await response.json())).not.toMatch(/boom|bad output|"x"/);
   });
 });
+
+describe("request options", () => {
+  it("asks for a JSON schema from providers that keep no data, and sends no temperature", async () => {
+    const fetchMock = mockFetch(ok);
+    await settle(call());
+    const body = JSON.parse(
+      (fetchMock.mock.calls[0] as unknown as [string, RequestInit])[1].body as string,
+    );
+    expect(body.response_format).toMatchObject({
+      type: "json_schema",
+      json_schema: { strict: true },
+    });
+    expect(body.provider).toEqual({ require_parameters: true, data_collection: "deny" });
+    // temperature + require_parameters finds no endpoint for some models (404).
+    expect(body).not.toHaveProperty("temperature");
+  });
+});

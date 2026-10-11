@@ -51,13 +51,15 @@ async function chat(
       model: MODEL,
       messages,
       max_tokens: maxTokens,
-      temperature: 0.3,
       response_format: {
         type: "json_schema",
         json_schema: { name: "response", strict: true, schema: jsonSchema },
       },
-      // Only route to providers that honor response_format.
-      provider: { require_parameters: true },
+      // Only route to providers that honor response_format, and that neither
+      // store nor train on prompts (learner text is personal data). Do not add
+      // `temperature` here: with require_parameters it leaves some models
+      // (e.g. anthropic/claude-haiku-5.5) with no endpoint, a 404.
+      provider: { require_parameters: true, data_collection: "deny" },
     }),
     signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   });
