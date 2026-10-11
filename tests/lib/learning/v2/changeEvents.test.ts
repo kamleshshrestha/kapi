@@ -4,6 +4,7 @@ import { onLocalChange, emitLocalChange, type LocalChange } from "@/lib/learning
 import { writeLastSession, applyRemoteLastSession } from "@/lib/learning/v2/localSession";
 import { savePersonalCard, applyRemotePersonalCards } from "@/lib/learning/v2/personalCards";
 import { writeMastery, applyRemoteMastery } from "@/lib/learning/v2/flashcardMastery";
+import { recordEvidence, applyRemoteLevels } from "@/lib/learning/v2/levelStore";
 
 const changes: LocalChange[] = [];
 let off: () => void;
@@ -25,7 +26,13 @@ describe("local change events", () => {
     });
     savePersonalCard("overfitting", { misconceptionId: "m", front: "q", back: "a" });
     writeMastery("overfitting", "card-1", "fuzzy");
-    expect(changes.map((c) => c.type)).toEqual(["last-session", "personal-cards", "mastery"]);
+    recordEvidence("overfitting", "apply", "clean");
+    expect(changes.map((c) => c.type)).toEqual(["last-session", "personal-cards", "mastery", "levels"]);
+    expect(changes.at(-1)).toMatchObject({
+      type: "levels",
+      conceptId: "overfitting",
+      levels: { apply: { clean: 1, helped: 0 } },
+    });
   });
 
   it("stays silent when state comes from the account", () => {
@@ -37,6 +44,7 @@ describe("local change events", () => {
     });
     applyRemotePersonalCards("overfitting", []);
     applyRemoteMastery("overfitting", { a: "got-it" });
+    applyRemoteLevels("overfitting", { explain: { clean: 1, helped: 0, at: "2026-01-01T00:00:00.000Z" } });
     expect(changes).toEqual([]);
   });
 

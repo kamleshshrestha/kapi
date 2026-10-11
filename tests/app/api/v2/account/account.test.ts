@@ -88,7 +88,7 @@ describe("GET /api/v2/account/export", () => {
     expect(res.headers.get("cache-control")).toBe("no-store");
     const body = await res.json();
     expect(body.userId).toBe("u1");
-    expect(Object.keys(body.data)).toEqual(["last_sessions", "personal_cards", "card_mastery", "consents", "session_events"]);
+    expect(Object.keys(body.data)).toEqual(["last_sessions", "personal_cards", "card_mastery", "concept_levels", "consents", "session_events"]);
     expect(body.data.consents).toHaveLength(1);
   });
 

@@ -5,6 +5,7 @@ const TABLES = [
   "last_sessions",
   "personal_cards",
   "card_mastery",
+  "concept_levels",
   "consents",
   "session_events",
 ] as const;

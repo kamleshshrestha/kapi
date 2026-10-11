@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   mergeCards,
   mergeLastSession,
+  mergeLevels,
   mergeMastery,
   sameCards,
+  sameLevels,
   sameMastery,
 } from "@/lib/sync/merge";
 import { MAX_REVISIT_CARDS, type PersonalCard } from "@/lib/learning/v2/personalCards";
@@ -85,3 +87,38 @@ describe("mergeMastery and equality helpers", () => {
     expect(sameMastery({ x: "got-it" }, { x: "forgot" })).toBe(false);
   });
 });
+
+describe("mergeLevels and sameLevels", () => {
+  const T1 = "2026-01-01T00:00:00.000Z";
+  const T2 = "2026-02-01T00:00:00.000Z";
+
+  it("takes the higher counts per level and the later time", () => {
+    const merged = mergeLevels(
+      { explain: { clean: 3, helped: 0, at: T1 }, apply: { clean: 1, helped: 2, at: T2 } },
+      { explain: { clean: 2, helped: 1, at: T2 }, defend: { clean: 1, helped: 0, at: T1 } },
+    );
+    expect(merged).toEqual({
+      explain: { clean: 3, helped: 1, at: T2 },
+      apply: { clean: 1, helped: 2, at: T2 },
+      defend: { clean: 1, helped: 0, at: T1 },
+    });
+  });
+
+  it("does not double-count when both sides already agree (it runs on every startup)", () => {
+    const same = { explain: { clean: 2, helped: 1, at: T1 } };
+    expect(mergeLevels(same, same)).toEqual(same);
+  });
+
+  it("is empty when both sides are", () => {
+    expect(mergeLevels({}, {})).toEqual({});
+  });
+
+  it("compares levels by content", () => {
+    const a = { explain: { clean: 1, helped: 0, at: T1 } };
+    expect(sameLevels(a, { explain: { clean: 1, helped: 0, at: T1 } })).toBe(true);
+    expect(sameLevels(a, { explain: { clean: 2, helped: 0, at: T1 } })).toBe(false);
+    expect(sameLevels(a, {})).toBe(false);
+    expect(sameLevels({}, {})).toBe(true);
+  });
+});
+

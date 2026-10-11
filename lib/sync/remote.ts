@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { LastSessionOutcome } from "@/lib/learning/v2/localSession";
 import type { PersonalCard } from "@/lib/learning/v2/personalCards";
+import type { ConceptLevels, EvidenceLevel } from "@/lib/learning/v2/levels";
 import type {
   MasteryMap,
   MasteryRating,
@@ -11,6 +12,7 @@ export type RemoteState = {
   lastSessions: Record<string, LastSessionOutcome>;
   cards: Record<string, PersonalCard[]>;
   mastery: Record<string, MasteryMap>;
+  levels: Record<string, ConceptLevels>;
 };
 
 function check(error: { message: string } | null, what: string) {
@@ -99,17 +101,42 @@ export async function pushMastery(
   check(error, "card_mastery upsert");
 }
 
+export async function pushLevels(
+  db: SupabaseClient,
+  userId: string,
+  conceptId: string,
+  levels: ConceptLevels,
+): Promise<void> {
+  const rows = (Object.entries(levels) as [EvidenceLevel, NonNullable<ConceptLevels[EvidenceLevel]>][]).map(
+    ([level, progress]) => ({
+      user_id: userId,
+      concept_id: conceptId,
+      level,
+      clean: progress.clean,
+      helped: progress.helped,
+      at: progress.at,
+    }),
+  );
+  if (rows.length === 0) return;
+  const { error } = await db
+    .from("concept_levels")
+    .upsert(rows, { onConflict: "user_id,concept_id,level" });
+  check(error, "concept_levels upsert");
+}
+
 export async function pullAll(db: SupabaseClient): Promise<RemoteState> {
-  const [sessions, cards, mastery] = await Promise.all([
+  const [sessions, cards, mastery, levels] = await Promise.all([
     db.from("last_sessions").select("*"),
     db.from("personal_cards").select("*"),
     db.from("card_mastery").select("*"),
+    db.from("concept_levels").select("*"),
   ]);
   check(sessions.error, "last_sessions select");
   check(cards.error, "personal_cards select");
   check(mastery.error, "card_mastery select");
+  check(levels.error, "concept_levels select");
 
-  const state: RemoteState = { lastSessions: {}, cards: {}, mastery: {} };
+  const state: RemoteState = { lastSessions: {}, cards: {}, mastery: {}, levels: {} };
   for (const r of sessions.data ?? []) {
     state.lastSessions[r.concept_id] = {
       misconceptionId: r.misconception_id,
@@ -130,6 +157,13 @@ export async function pullAll(db: SupabaseClient): Promise<RemoteState> {
   }
   for (const r of mastery.data ?? []) {
     (state.mastery[r.concept_id] ??= {})[r.card_id] = r.rating;
+  }
+  for (const r of levels.data ?? []) {
+    (state.levels[r.concept_id] ??= {})[r.level as EvidenceLevel] = {
+      clean: r.clean,
+      helped: r.helped,
+      at: new Date(r.at).toISOString(),
+    };
   }
   return state;
 }

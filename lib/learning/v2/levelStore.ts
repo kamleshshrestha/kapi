@@ -1,3 +1,4 @@
+import { emitLocalChange } from "./changeEvents";
 import { getCoreCards } from "./flashcards";
 import { readMastery } from "./flashcardMastery";
 import {
@@ -46,7 +47,8 @@ export function readLevels(conceptId: string): ConceptLevels {
   }
 }
 
-function writeLevels(conceptId: string, levels: ConceptLevels): void {
+/** Stores levels from the account without announcing them as a local change. */
+export function applyRemoteLevels(conceptId: string, levels: ConceptLevels): void {
   if (typeof window === "undefined") return;
   try {
     window.localStorage.setItem(KEY_PREFIX + conceptId, JSON.stringify(levels));
@@ -62,7 +64,8 @@ export function recordEvidence(
   kind: EvidenceKind,
 ): ConceptLevels {
   const next = addEvidence(readLevels(conceptId), level, kind, new Date().toISOString());
-  writeLevels(conceptId, next);
+  applyRemoteLevels(conceptId, next);
+  emitLocalChange({ type: "levels", conceptId, levels: next });
   return next;
 }
 

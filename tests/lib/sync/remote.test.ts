@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { pullAll, pushMastery, replaceCards } from "@/lib/sync/remote";
+import { pullAll, pushLevels, pushMastery, replaceCards } from "@/lib/sync/remote";
 
 type Call = { table: string; op: string; args: unknown[] };
 
@@ -50,11 +50,19 @@ describe("pullAll", () => {
         { concept_id: "overfitting", id: "personal:m", misconception_id: "m", front: "q", back: "a", resolved_at: "2026-01-01T10:00:00+00:00", kind: "resolved" },
       ],
       card_mastery: [{ concept_id: "overfitting", card_id: "personal:m", rating: "fuzzy" }],
+      concept_levels: [
+        { concept_id: "overfitting", level: "apply", clean: 2, helped: 1, at: "2026-01-02T10:00:00+00:00" },
+        { concept_id: "overfitting", level: "defend", clean: 0, helped: 1, at: "2026-01-03T10:00:00+00:00" },
+      ],
     });
     const state = await pullAll(db);
     expect(state.lastSessions.overfitting.at).toBe("2026-01-01T10:00:00.000Z");
     expect(state.cards.overfitting[0]).toMatchObject({ id: "personal:m", resolvedAt: "2026-01-01T10:00:00.000Z", kind: "resolved" });
     expect(state.mastery.overfitting).toEqual({ "personal:m": "fuzzy" });
+    expect(state.levels.overfitting).toEqual({
+      apply: { clean: 2, helped: 1, at: "2026-01-02T10:00:00.000Z" },
+      defend: { clean: 0, helped: 1, at: "2026-01-03T10:00:00.000Z" },
+    });
   });
 
   it("throws when a query fails, so the caller can fall back to local-only", async () => {
@@ -98,3 +106,26 @@ describe("pushMastery", () => {
     expect(upsert).not.toHaveBeenCalled();
   });
 });
+
+describe("pushLevels", () => {
+  it("upserts one row per level, keyed by account, concept and level", async () => {
+    const { db, calls } = fakeDb({});
+    await pushLevels(db, "u1", "overfitting", {
+      explain: { clean: 3, helped: 0, at: "2026-01-01T00:00:00.000Z" },
+      defend: { clean: 1, helped: 2, at: "2026-01-02T00:00:00.000Z" },
+    });
+    const upsert = calls.find((c) => c.table === "concept_levels" && c.op === "upsert");
+    expect(upsert?.args[0]).toEqual([
+      { user_id: "u1", concept_id: "overfitting", level: "explain", clean: 3, helped: 0, at: "2026-01-01T00:00:00.000Z" },
+      { user_id: "u1", concept_id: "overfitting", level: "defend", clean: 1, helped: 2, at: "2026-01-02T00:00:00.000Z" },
+    ]);
+    expect(upsert?.args[1]).toEqual({ onConflict: "user_id,concept_id,level" });
+  });
+
+  it("sends nothing when there are no levels yet", async () => {
+    const { db, calls } = fakeDb({});
+    await pushLevels(db, "u1", "overfitting", {});
+    expect(calls).toEqual([]);
+  });
+});
+

@@ -1,6 +1,7 @@
 import type { LastSessionOutcome } from "./localSession";
 import type { PersonalCard } from "./personalCards";
 import type { MasteryRating } from "./flashcardMastery";
+import type { ConceptLevels } from "./levels";
 
 /**
  * A tiny publish/subscribe channel for changes to the learner's local state,
@@ -11,7 +12,8 @@ import type { MasteryRating } from "./flashcardMastery";
 export type LocalChange =
   | { type: "last-session"; conceptId: string; outcome: LastSessionOutcome }
   | { type: "personal-cards"; conceptId: string; cards: PersonalCard[] }
-  | { type: "mastery"; conceptId: string; cardId: string; rating: MasteryRating };
+  | { type: "mastery"; conceptId: string; cardId: string; rating: MasteryRating }
+  | { type: "levels"; conceptId: string; levels: ConceptLevels };
 
 type Listener = (change: LocalChange) => void;
 
