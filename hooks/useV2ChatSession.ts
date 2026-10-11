@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { getMisconception } from "@/lib/learning/misconceptions";
 import { pickOpener, welcomeBackOpener } from "@/lib/learning/v2/openers";
 import { readLastSession, writeLastSession } from "@/lib/learning/v2/localSession";
+import { evidenceFor, levelForMove } from "@/lib/learning/v2/levels";
+import { recordEvidence } from "@/lib/learning/v2/levelStore";
 import {
   saveAnsweredCard,
   savePersonalCard,
@@ -117,6 +119,10 @@ export function useV2ChatSession(
   // Groups this chat's events in the opt-in log (the server stores nothing
   // unless the learner has opted in). Created on first use, renewed per concept.
   const sessionIdRef = useRef<string | undefined>(undefined);
+  // Whether the learner asked for a hint or said they were lost on the current
+  // question, which makes a correct answer "helped" rather than clean for the
+  // depth levels. Reset whenever a new question is asked.
+  const helpedRef = useRef(false);
   function getSessionId() {
     return (sessionIdRef.current ??= crypto.randomUUID());
   }
@@ -125,6 +131,7 @@ export function useV2ChatSession(
   // No API call, so there is nothing to wait on before this appears.
   useEffect(() => {
     sessionIdRef.current = undefined;
+    helpedRef.current = false;
     const last = readLastSession(conceptId);
     const opener = last
       ? welcomeBackOpener(conceptTitle, last)
@@ -169,6 +176,9 @@ export function useV2ChatSession(
           result.probeQuestion,
         ),
       );
+
+      // No gap found: a strong first explanation is evidence for "explain".
+      if (result.misconceptionId === null) recordEvidence(conceptId, "explain", "clean");
 
       // No question to ask (model had nothing to probe): the chat is over.
       if (!result.probeQuestion) {
@@ -260,6 +270,14 @@ export function useV2ChatSession(
       const allVerdicts = [...verdicts, result.verdict];
       setVerdicts(allVerdicts);
 
+      // What this answer shows, for the depth levels (a correct answer only).
+      const evidence = evidenceFor({
+        verdict: result.verdict,
+        attempt,
+        helpUsed: helpedRef.current,
+      });
+      if (evidence) recordEvidence(conceptId, levelForMove(move), evidence);
+
       // Every question answered correctly becomes a card (if it isn't one
       // already). The first one on the diagnosed gap is that gap's card, and
       // resolving the gap closes it in the session record.
@@ -294,6 +312,7 @@ export function useV2ChatSession(
         setMove(result.nextMove ?? "check");
         setTurn((t) => t + 1);
         setAttempt(1);
+        helpedRef.current = false;
         return;
       }
 
@@ -332,6 +351,8 @@ export function useV2ChatSession(
     if (!probeQuestion || pending || phase !== "await-check-answer") return;
     const history = messages.slice(-CHAT_HISTORY_LIMIT);
     const label = ASSIST_ACTIONS.find((a) => a.kind === kind)?.label ?? kind;
+    // Asking to rephrase is not help with the answer; a hint or "I'm lost" is.
+    if (kind === "hint" || kind === "lost") helpedRef.current = true;
     if (!retrying) {
       setFailedAction(null);
       append("learner", label);

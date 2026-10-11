@@ -141,4 +141,18 @@ describe("ChatThread", () => {
     renderThread({ error: "Something broke", canRetry: false });
     expect(screen.queryByRole("button", { name: "Try again" })).toBeNull();
   });
+
+  it("shows where the learner stands, with a suggested next step, once the chat is done", async () => {
+    renderThread({ phase: "done" });
+    expect(
+      await screen.findByRole("heading", { name: "Where you stand on Overfitting" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("list", { name: "Depth of understanding" })).toBeInTheDocument();
+    expect(screen.getByText(/^Next:/)).toBeInTheDocument();
+  });
+
+  it("does not show it while the chat is still going", () => {
+    renderThread({ phase: "await-check-answer" });
+    expect(screen.queryByRole("heading", { name: /Where you stand/ })).toBeNull();
+  });
 });

@@ -6,6 +6,7 @@ import { useV2ChatSession } from "@/hooks/useV2ChatSession";
 import { readLastSession, writeLastSession } from "@/lib/learning/v2/localSession";
 import { readPersonalCards } from "@/lib/learning/v2/personalCards";
 import { MAX_CHAT_TURNS } from "@/lib/learning/v2/chatFlow";
+import { readLevels } from "@/lib/learning/v2/levelStore";
 
 const MISCONCEPTION_ID = "of-train-accuracy-proves";
 const OPTIONS = ["It memorises the data", "It generalises well"];
@@ -975,5 +976,116 @@ describe("useV2ChatSession build, check, challenge flow", () => {
     act(() => result.current.submit("Performance on unseen data."));
     await waitFor(() => expect(result.current.phase).toBe("done"));
     expect(lastCheckBody().move).toBe("build");
+  });
+});
+
+describe("useV2ChatSession depth level evidence", () => {
+  const levels = () => readLevels("overfitting");
+
+  it("counts a strong first explanation as a clean 'explain' answer", async () => {
+    diagnoseReply({ misconceptionId: null, explanation: null, example: null, takeaway: null });
+    const { result } = setup();
+    act(() => result.current.submit(LONG_TEXT));
+    await waitFor(() => expect(result.current.phase).toBe("await-check-answer"));
+
+    expect(levels().explain).toMatchObject({ clean: 1, helped: 0 });
+  });
+
+  it("records nothing for an explanation that shows a gap", async () => {
+    await reachCheckPhase();
+    expect(levels()).toEqual({});
+  });
+
+  it("counts a correct first-try answer to a build question as clean 'explain'", async () => {
+    const { result } = await reachCheckPhase();
+    checkReply("resolved");
+    act(() => result.current.submit("The test score matters."));
+    await waitFor(() => expect(result.current.phase).toBe("done"));
+
+    expect(levels().explain).toMatchObject({ clean: 1, helped: 0 });
+    expect(levels().apply).toBeUndefined();
+  });
+
+  it("counts an answer that needed a hint as helped, not clean", async () => {
+    const { result } = await reachCheckPhase();
+    checkReply("unresolved", null, "Think about unseen data.");
+    act(() => result.current.submit("It's good."));
+    await waitFor(() => expect(result.current.messages.at(-1)?.text).toContain("Think about unseen data."));
+    expect(levels()).toEqual({}); // the miss itself earns nothing
+
+    checkReply("resolved");
+    act(() => result.current.submit("The test score matters."));
+    await waitFor(() => expect(result.current.phase).toBe("done"));
+    expect(levels().explain).toMatchObject({ clean: 0, helped: 1 });
+  });
+
+  it("counts an answer after the learner asked for a hint as helped", async () => {
+    const { result } = await reachCheckPhase();
+    reply({ reply: "Think about data the model never saw.", question: null });
+    act(() => void result.current.assist("hint"));
+    await waitFor(() => expect(result.current.messages.at(-1)?.text).toContain("never saw"));
+
+    checkReply("resolved");
+    act(() => result.current.submit("The test score matters."));
+    await waitFor(() => expect(result.current.phase).toBe("done"));
+    expect(levels().explain).toMatchObject({ clean: 0, helped: 1 });
+  });
+
+  it("does not treat asking to rephrase as help", async () => {
+    const { result } = await reachCheckPhase();
+    reply({ reply: "Picture it as an exam on new questions.", question: null });
+    act(() => void result.current.assist("rephrase"));
+    await waitFor(() => expect(result.current.messages.at(-1)?.text).toContain("exam"));
+
+    checkReply("resolved");
+    act(() => result.current.submit("The test score matters."));
+    await waitFor(() => expect(result.current.phase).toBe("done"));
+    expect(levels().explain).toMatchObject({ clean: 1, helped: 0 });
+  });
+
+  it("gives no credit for partial answers", async () => {
+    const { result } = await reachCheckPhase();
+    checkReply("partial", "Easier question?", null, { nextMove: "build" });
+    act(() => result.current.submit("Maybe."));
+    await waitFor(() => expect(result.current.messages.at(-1)?.text).toContain("Easier question?"));
+    expect(levels()).toEqual({});
+  });
+
+  it("credits each question's own level as the conversation moves from build to check to challenge", async () => {
+    const { result } = await reachCheckPhase();
+
+    checkReply("resolved", "Apply it here?", null, { nextMove: "check" });
+    act(() => result.current.submit("Test score matters."));
+    await waitFor(() => expect(result.current.messages.at(-1)?.text).toContain("Apply it here?"));
+
+    checkReply("resolved", "What if the test set is tiny?", null, { nextMove: "challenge" });
+    act(() => result.current.submit("Applied."));
+    await waitFor(() => expect(result.current.messages.at(-1)?.text).toContain("tiny"));
+
+    checkReply("resolved");
+    act(() => result.current.submit("It would be noisy."));
+    await waitFor(() => expect(result.current.phase).toBe("done"));
+
+    expect(levels().explain).toMatchObject({ clean: 1 });
+    expect(levels().apply).toMatchObject({ clean: 1 });
+    expect(levels().defend).toMatchObject({ clean: 1 });
+  });
+
+  it("forgets the help request when the next question comes", async () => {
+    const { result } = await reachCheckPhase();
+    reply({ reply: "Think about unseen data.", question: null });
+    act(() => void result.current.assist("hint"));
+    await waitFor(() => expect(result.current.messages.at(-1)?.text).toContain("unseen"));
+
+    checkReply("resolved", "Apply it here?", null, { nextMove: "check" });
+    act(() => result.current.submit("Test score matters."));
+    await waitFor(() => expect(result.current.messages.at(-1)?.text).toContain("Apply it here?"));
+
+    checkReply("resolved");
+    act(() => result.current.submit("Applied."));
+    await waitFor(() => expect(result.current.phase).toBe("done"));
+
+    expect(levels().explain).toMatchObject({ clean: 0, helped: 1 }); // asked for help
+    expect(levels().apply).toMatchObject({ clean: 1, helped: 0 }); // unaided
   });
 });
