@@ -23,11 +23,29 @@ export default function V2Home() {
           className="hidden h-10 w-auto self-start dark:block"
         />
         <h1 className="text-4xl font-semibold tracking-tight sm:text-5xl">
-          Find out what you actually misunderstand.
+          You think you understand it. Kapi finds out if you do.
         </h1>
         <p className="max-w-xl text-lg leading-8 text-foreground/70">
-          Pick a concept and talk it through — Kapi will figure out the
-          specific gap in your understanding and help you close it.
+          Explain a machine-learning concept in your own words. Kapi finds the
+          specific gap in your understanding and helps you close it.
+        </p>
+        <ol className="mt-2 grid gap-3 text-sm leading-6 sm:grid-cols-3">
+          {[
+            ["1", "Explain it", "Pick a concept and say what you think it means."],
+            ["2", "Find the gap", "Kapi pinpoints what you specifically get wrong."],
+            ["3", "Close it", "Short questions and hints, then check you really got it."],
+          ].map(([n, title, text]) => (
+            <li key={n} className="rounded-xl border border-foreground/10 p-4">
+              <span className="font-medium">
+                {n}. {title}
+              </span>
+              <br />
+              <span className="text-foreground/70">{text}</span>
+            </li>
+          ))}
+        </ol>
+        <p className="text-sm text-foreground/60">
+          No sign-up needed. Saving your progress is optional.
         </p>
       </header>
 

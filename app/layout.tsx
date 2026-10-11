@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import SiteFooter from "@/components/v2/SiteFooter";
 import SyncRunner from "@/components/v2/SyncRunner";
 
 const geistSans = Geist({
@@ -16,7 +17,12 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Kapi",
   description:
-    "Pinpoint what you specifically misunderstand about a machine-learning concept.",
+    "You think you understand it. Kapi finds out if you do. Explain a machine-learning concept in your own words and find the specific gap.",
+  openGraph: {
+    title: "Kapi",
+    description: "You think you understand it. Kapi finds out if you do.",
+    type: "website",
+  },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
@@ -27,6 +33,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     >
       <body className="min-h-full flex flex-col">
         {children}
+        <SiteFooter />
         <SyncRunner />
       </body>
     </html>
