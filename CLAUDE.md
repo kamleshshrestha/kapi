@@ -10,6 +10,8 @@ Kapi (formerly Learning Debugger) — a web app that helps beginner machine-lear
 
 The learner experience is a chat-first session with flashcards, available for all six catalog concepts (gradient descent, backpropagation, overfitting, train/test split, linear regression and logistic regression). It is served from the root (the earlier quiz-style v1 flow has been removed; the old `/v2/...` URLs redirect to the root ones via `next.config.ts`, and the `v2` names in the API path, component/lib folders and localStorage keys are kept so stored learner data doesn't change). A concept in `lib/learning/concepts.ts` without misconceptions has no Core flashcards and the chat cannot diagnose it. Unit tests run with Vitest.
 
+The home page opens with the promise and a three-step intro; a footer on every page links Send feedback (`/feedback`), Privacy and Impressum (`/impressum`, a draft with placeholders).
+
 Learner flow: pick a concept (`/`) → explain it in your own words in a chat with Kapi → the LLM finds the specific gap (or compliments a strong explanation and challenges it) → an adaptive conversation of up to 7 questions that builds the learner up (small teaching pieces, easy guiding questions) before checking and only then challenging, with hints before reveals and help chips (hint / "I'm lost" / explain differently) → a recap at the end. Resolved ideas and shaky ideas are saved as personal flashcards ("From you" deck, alongside the catalog-derived "Core" deck at `/decks/[concept]`). A too-thin first explanation falls back to the first diagnostic question's options as quick replies.
 
 ## Commands
