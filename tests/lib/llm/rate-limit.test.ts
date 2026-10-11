@@ -104,10 +104,10 @@ describe("checkRateLimit", () => {
 
   it("returns null under the limit and a 429 with Retry-After over it", async () => {
     const checkRateLimit = await load({ RATE_LIMIT_MAX: "2" });
-    expect(checkRateLimit(from("1.1.1.1"))).toBeNull();
-    expect(checkRateLimit(from("1.1.1.1"))).toBeNull();
+    expect((await checkRateLimit(from("1.1.1.1")))).toBeNull();
+    expect((await checkRateLimit(from("1.1.1.1")))).toBeNull();
 
-    const blocked = checkRateLimit(from("1.1.1.1"))!;
+    const blocked = (await checkRateLimit(from("1.1.1.1")))!;
     expect(blocked.status).toBe(429);
     expect(Number(blocked.headers.get("Retry-After"))).toBeGreaterThan(0);
     expect((await blocked.json()).error).toMatch(/too many requests/i);
@@ -115,16 +115,16 @@ describe("checkRateLimit", () => {
 
   it("limits each client separately", async () => {
     const checkRateLimit = await load({ RATE_LIMIT_MAX: "1" });
-    expect(checkRateLimit(from("1.1.1.1"))).toBeNull();
-    expect(checkRateLimit(from("1.1.1.1"))?.status).toBe(429);
-    expect(checkRateLimit(from("2.2.2.2"))).toBeNull();
+    expect((await checkRateLimit(from("1.1.1.1")))).toBeNull();
+    expect((await checkRateLimit(from("1.1.1.1")))?.status).toBe(429);
+    expect((await checkRateLimit(from("2.2.2.2")))).toBeNull();
   });
 
   it("enforces a global cap across clients", async () => {
     const checkRateLimit = await load({ RATE_LIMIT_GLOBAL_MAX: "2" });
-    expect(checkRateLimit(from("1.1.1.1"))).toBeNull();
-    expect(checkRateLimit(from("2.2.2.2"))).toBeNull();
-    expect(checkRateLimit(from("3.3.3.3"))?.status).toBe(429);
+    expect((await checkRateLimit(from("1.1.1.1")))).toBeNull();
+    expect((await checkRateLimit(from("2.2.2.2")))).toBeNull();
+    expect((await checkRateLimit(from("3.3.3.3")))?.status).toBe(429);
   });
 
   it("does not spend the global budget on requests already blocked per client", async () => {
@@ -132,17 +132,17 @@ describe("checkRateLimit", () => {
       RATE_LIMIT_MAX: "1",
       RATE_LIMIT_GLOBAL_MAX: "2",
     });
-    expect(checkRateLimit(from("1.1.1.1"))).toBeNull(); // global 1/2
-    for (let i = 0; i < 5; i++) checkRateLimit(from("1.1.1.1")); // blocked per client
-    expect(checkRateLimit(from("2.2.2.2"))).toBeNull(); // global 2/2, still fine
+    expect((await checkRateLimit(from("1.1.1.1")))).toBeNull(); // global 1/2
+    for (let i = 0; i < 5; i++) (await checkRateLimit(from("1.1.1.1"))); // blocked per client
+    expect((await checkRateLimit(from("2.2.2.2")))).toBeNull(); // global 2/2, still fine
   });
 
   it.each(["abc", "0", "-5", ""])(
     "ignores invalid env value %j and uses the default of 20",
     async (value) => {
       const checkRateLimit = await load({ RATE_LIMIT_MAX: value });
-      for (let i = 0; i < 20; i++) expect(checkRateLimit(from("1.1.1.1"))).toBeNull();
-      expect(checkRateLimit(from("1.1.1.1"))?.status).toBe(429);
+      for (let i = 0; i < 20; i++) expect((await checkRateLimit(from("1.1.1.1")))).toBeNull();
+      expect((await checkRateLimit(from("1.1.1.1")))?.status).toBe(429);
     },
   );
 });
