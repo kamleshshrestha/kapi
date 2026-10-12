@@ -29,7 +29,7 @@ export default function TeachThread({
           <ChatBubble key={i} role={message.role} text={message.text} />
         ))}
         {pending && (
-          <p className="text-sm text-foreground/50" aria-live="polite">
+          <p className="text-sm text-foreground/60" aria-live="polite">
             Kapi is thinking…
           </p>
         )}
@@ -96,7 +96,7 @@ export default function TeachThread({
         </div>
       ) : (
         <div className="flex flex-col gap-2">
-          <p className="text-sm text-foreground/50">
+          <p className="text-sm text-foreground/60">
             Your explanation {turn} of {maxTurns}
           </p>
           <ChatInputBar disabled={pending} pending={pending} onSubmit={submit} />

@@ -44,7 +44,7 @@ export default function LevelStrip({
           <span>{label}</span>
           <span className="sr-only">: {STATE_WORD[states[key]]}</span>
           {!compact && (
-            <span className="text-foreground/50">· {STATE_WORD[states[key]]}</span>
+            <span className="text-foreground/60">· {STATE_WORD[states[key]]}</span>
           )}
         </li>
       ))}

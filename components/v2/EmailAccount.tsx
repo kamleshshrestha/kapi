@@ -27,7 +27,7 @@ const MESSAGES: Record<AuthFailure, string> = {
 };
 
 const linkButton =
-  "underline underline-offset-2 hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary";
+  "py-2 -my-2 underline underline-offset-2 hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary";
 const field =
   "rounded-lg border border-foreground/10 bg-transparent px-3 py-1.5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary";
 const primary =

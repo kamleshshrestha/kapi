@@ -152,7 +152,7 @@ function DeckReview({
 
   return (
     <div className="flex flex-col gap-6">
-      <p className="text-sm text-foreground/50">
+      <p className="text-sm text-foreground/60">
         Card {index + 1} of {total}
       </p>
       <Flashcard front={card.front} back={card.back} flipped={flipped} onFlip={flip} />
@@ -170,7 +170,7 @@ function DeckReview({
           ))}
         </div>
       ) : (
-        <p className="text-center text-sm text-foreground/40">
+        <p className="text-center text-sm text-foreground/60">
           Flip the card, then rate how well you knew it.
         </p>
       )}

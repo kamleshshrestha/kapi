@@ -14,4 +14,9 @@ describe("SiteFooter", () => {
     expect(screen.getByRole("link", { name: "Privacy" })).toHaveAttribute("href", "/privacy");
     expect(screen.getByRole("link", { name: "Impressum" })).toHaveAttribute("href", "/impressum");
   });
+
+  it("gives each link a tap area taller than its text", () => {
+    render(<SiteFooter />);
+    for (const link of screen.getAllByRole("link")) expect(link).toHaveClass("py-2");
+  });
 });

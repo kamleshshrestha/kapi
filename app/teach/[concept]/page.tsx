@@ -18,7 +18,7 @@ export default async function TeachPage(props: PageProps<"/teach/[concept]">) {
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-8 px-6 py-12 sm:py-20">
       <header className="flex flex-col gap-3">
-        <Link href="/" className="text-sm text-foreground/60 hover:text-foreground">
+        <Link href="/" className="text-sm text-foreground/60 hover:text-foreground py-2 -my-2">
           ← All concepts
         </Link>
         <h1 className="text-3xl font-semibold tracking-tight">Teach it back: {concept.title}</h1>

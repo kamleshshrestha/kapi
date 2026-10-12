@@ -18,7 +18,7 @@ export default async function V2DeckPage(
       <header className="flex flex-col gap-3">
         <Link
           href="/"
-          className="text-sm text-foreground/60 hover:text-foreground"
+          className="text-sm text-foreground/60 hover:text-foreground py-2 -my-2"
         >
           ← All concepts
         </Link>

@@ -10,7 +10,7 @@ export default function ChatBubble({
   const isLearner = role === "learner";
   return (
     <div className={`flex flex-col gap-1 ${isLearner ? "items-end" : "items-start"}`}>
-      <span className="text-xs font-medium text-foreground/40">
+      <span className="text-xs font-medium text-foreground/60">
         {isLearner ? "You" : "Kapi"}
       </span>
       <p
