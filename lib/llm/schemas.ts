@@ -73,11 +73,23 @@ export const chatSummaryRequestSchema = z.object({
   verdicts: z.array(chatVerdictSchema).max(20),
 });
 
+/** Teach-it-back: the learner explains to a beginner; this is their latest message. */
+export const chatTeachRequestSchema = z.object({
+  conceptId: id,
+  phase: z.literal("teach"),
+  /** The conversation before this message. */
+  history: z.array(chatHistoryMessageSchema).max(30),
+  explanation: freeText,
+  /** 1-based number of the learner's message (1 = the opening explanation). */
+  turn: z.number().int().min(1).max(10),
+});
+
 export const chatTurnRequestSchema = z.discriminatedUnion("phase", [
   chatDiagnoseRequestSchema,
   chatCheckRequestSchema,
   chatAssistRequestSchema,
   chatSummaryRequestSchema,
+  chatTeachRequestSchema,
 ]);
 
 // --- Structured model outputs -----------------------------------------------
@@ -142,6 +154,26 @@ export const chatSummaryOutputSchema = z.object({
       }),
     )
     .max(3),
+});
+
+export const teachVerdicts = ["solid", "partial", "shaky"] as const;
+
+export const chatTeachOutputSchema = z.object({
+  /**
+   * The beginner's reply: a reaction and one naive question, or, on the last
+   * turn, a short thank-you with no question.
+   */
+  reply: z.string().refine((text) => text.trim().length >= 10, {
+    message: "reply must be a sentence or two from the beginner",
+  }),
+  /** How the explanation holds up so far; only shown to the learner at the end. */
+  assessment: z.object({
+    verdict: z.enum(teachVerdicts),
+    /** What they explained clearly and correctly. */
+    clear: z.array(z.string()).max(3),
+    /** What they skipped or got wrong, each stated as the correct idea. */
+    gaps: z.array(z.string()).max(3),
+  }),
 });
 
 /** Verdict from the reviewer that checks a hint doesn't give the answer away. */

@@ -156,6 +156,14 @@ describe("ChatThread", () => {
     expect(screen.queryByRole("heading", { name: /Where you stand/ })).toBeNull();
   });
 
+  it("links to teach-it-back once the chat is done", () => {
+    renderThread({ phase: "done" });
+    expect(screen.getByRole("link", { name: /teach it back/i })).toHaveAttribute(
+      "href",
+      "/teach/overfitting",
+    );
+  });
+
   it("asks for feedback once the chat is done, not before", () => {
     renderThread({ phase: "done" });
     expect(screen.getByRole("heading", { name: "Quick feedback" })).toBeInTheDocument();
