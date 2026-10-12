@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { getMisconception } from "@/lib/learning/misconceptions";
 import { pickOpener, welcomeBackOpener } from "@/lib/learning/v2/openers";
 import { readLastSession, writeLastSession } from "@/lib/learning/v2/localSession";
+import { postJson } from "@/lib/learning/v2/api";
 import { evidenceFor, levelForMove } from "@/lib/learning/v2/levels";
 import { recordEvidence } from "@/lib/learning/v2/levelStore";
 import {
@@ -24,24 +25,6 @@ function paragraphs(...parts: (string | null | undefined)[]): string {
     .map((p) => p?.trim())
     .filter(Boolean)
     .join("\n\n");
-}
-
-async function postJson<T>(url: string, body: unknown): Promise<T> {
-  let response: Response;
-  try {
-    response = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-  } catch {
-    throw new Error("Couldn't reach the server. Check your connection and try again.");
-  }
-  const data = await response.json().catch(() => null);
-  if (!response.ok) {
-    throw new Error(data?.error ?? "Something went wrong. Please try again.");
-  }
-  return data as T;
 }
 
 type DiagnoseResponse = {

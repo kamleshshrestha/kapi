@@ -8,3 +8,10 @@ export const MAX_CHAT_TURNS = 7;
 
 /** How many of the latest messages are sent back as conversation context. */
 export const CHAT_HISTORY_LIMIT = 12;
+
+/**
+ * Teach-it-back: how many times the learner explains to the "beginner" Kapi
+ * plays (the opening explanation, then answers to its naive questions). The
+ * route and the hook both stop here.
+ */
+export const TEACH_TURNS = 3;
