@@ -19,6 +19,7 @@ const signOut = vi.fn().mockResolvedValue({});
 function userWith(rows: Record<string, unknown[]>, failOn?: string) {
   return {
     id: "u1",
+    email: "a@b.example",
     supabase: {
       auth: { signOut },
       from: (table: string) => ({
@@ -88,6 +89,7 @@ describe("GET /api/v2/account/export", () => {
     expect(res.headers.get("cache-control")).toBe("no-store");
     const body = await res.json();
     expect(body.userId).toBe("u1");
+    expect(body.email).toBe("a@b.example");
     expect(Object.keys(body.data)).toEqual(["last_sessions", "personal_cards", "card_mastery", "concept_levels", "feedback", "consents", "session_events"]);
     expect(body.data.consents).toHaveLength(1);
   });
