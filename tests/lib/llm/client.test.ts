@@ -205,3 +205,19 @@ describe("request options", () => {
     expect(body).not.toHaveProperty("temperature");
   });
 });
+
+describe("model selection", () => {
+  const sentModel = (fetchMock: ReturnType<typeof mockFetch>) =>
+    JSON.parse((fetchMock.mock.calls[0] as unknown as [string, RequestInit])[1].body as string).model;
+
+  it("uses the configured model by default, and another one only when asked", async () => {
+    const { MODEL } = await import("@/lib/llm/client");
+    let fetchMock = mockFetch(ok);
+    await settle(call());
+    expect(sentModel(fetchMock)).toBe(MODEL);
+
+    fetchMock = mockFetch(ok);
+    await settle(generateStructured({ system: "s", user: "u", schema, model: "judge/model" }));
+    expect(sentModel(fetchMock)).toBe("judge/model");
+  });
+});
