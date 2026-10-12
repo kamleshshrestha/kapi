@@ -73,7 +73,7 @@ export default function ChatThread({
             <ConceptLevels conceptId={conceptId} showNext />
             <Link
               href={`/teach/${conceptId}`}
-              className="self-start text-sm font-medium text-primary underline"
+              className="self-start py-2 -my-2 text-sm font-medium text-primary underline"
             >
               Now teach it back to a beginner
             </Link>
