@@ -1,5 +1,6 @@
 import Image from "next/image";
 import ConceptSelectorV2 from "@/components/v2/ConceptSelectorV2";
+import EmailAccount from "@/components/v2/EmailAccount";
 import SyncNotice from "@/components/v2/SyncNotice";
 import { concepts } from "@/lib/learning/concepts";
 
@@ -49,7 +50,10 @@ export default function V2Home() {
         </p>
       </header>
 
-      <SyncNotice />
+      <div className="flex flex-col gap-3">
+        <SyncNotice />
+        <EmailAccount />
+      </div>
 
       <section aria-labelledby="pick-concept" className="flex flex-col gap-4">
         <h2 id="pick-concept" className="text-xl font-semibold">

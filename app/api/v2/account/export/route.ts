@@ -33,7 +33,7 @@ export async function GET(request: Request) {
 
   return new Response(
     JSON.stringify(
-      { exportedAt: new Date().toISOString(), userId: user.id, data },
+      { exportedAt: new Date().toISOString(), userId: user.id, email: user.email, data },
       null,
       2,
     ),
