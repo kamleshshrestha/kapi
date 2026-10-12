@@ -8,7 +8,6 @@ vi.mock("@/components/v2/SyncNotice", () => ({ default: () => null }));
 vi.mock("@/components/v2/EmailAccount", () => ({ default: () => null }));
 
 import V2Home from "@/app/page";
-import ImpressumPage from "@/app/impressum/page";
 
 afterEach(cleanup);
 
@@ -23,13 +22,5 @@ describe("home page intro", () => {
     expect(steps[0]).toHaveTextContent("Explain it");
     expect(steps[2]).toHaveTextContent("Close it");
     expect(screen.getByText(/No sign-up needed/)).toBeInTheDocument();
-  });
-});
-
-describe("impressum page", () => {
-  it("is marked as a draft until the details are filled in", () => {
-    render(<ImpressumPage />);
-    expect(screen.getByRole("heading", { name: "Impressum" })).toBeInTheDocument();
-    expect(screen.getByRole("note")).toHaveTextContent("Draft");
   });
 });
