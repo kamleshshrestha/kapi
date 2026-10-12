@@ -12,6 +12,8 @@ The learner experience is a chat-first session with flashcards, available for al
 
 The home page opens with the promise and a three-step intro; a footer on every page links Send feedback (`/feedback`), Privacy and Impressum (`/impressum`, a draft with placeholders).
 
+Teach-it-back (`/teach/[concept]`, linked from the end of a chat): the learner explains the concept to Kapi playing a curious beginner for `TEACH_TURNS` (3) messages via the `teach` phase of `/api/v2/chat`; the beginner only asks naive questions (prompt `chatTeachPrompt`) and the assessment (solid/partial/shaky, what was clear, gaps) is returned only on the last turn, enforced by the route. A solid one counts as clean Defend evidence. Chat events of this mode are not written to the opt-in log yet.
+
 Learner flow: pick a concept (`/`) → explain it in your own words in a chat with Kapi → the LLM finds the specific gap (or compliments a strong explanation and challenges it) → an adaptive conversation of up to 7 questions that builds the learner up (small teaching pieces, easy guiding questions) before checking and only then challenging, with hints before reveals and help chips (hint / "I'm lost" / explain differently) → a recap at the end. Resolved ideas and shaky ideas are saved as personal flashcards ("From you" deck, alongside the catalog-derived "Core" deck at `/decks/[concept]`). A too-thin first explanation falls back to the first diagnostic question's options as quick replies.
 
 ## Commands

@@ -71,6 +71,12 @@ export default function ChatThread({
           >
             <h2 className="text-lg font-semibold">Where you stand on {conceptTitle}</h2>
             <ConceptLevels conceptId={conceptId} showNext />
+            <Link
+              href={`/teach/${conceptId}`}
+              className="self-start text-sm font-medium text-primary underline"
+            >
+              Now teach it back to a beginner
+            </Link>
           </section>
         )}
         {phase === "done" && (

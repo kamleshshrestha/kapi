@@ -5,7 +5,7 @@ import {
 } from "@/lib/learning/misconceptions";
 import type { Concept, Misconception } from "@/lib/learning/types";
 import type { ChatMove } from "@/lib/llm/schemas";
-import { CHAT_HISTORY_LIMIT, MAX_CHAT_TURNS } from "@/lib/learning/v2/chatFlow";
+import { CHAT_HISTORY_LIMIT, MAX_CHAT_TURNS, TEACH_TURNS } from "@/lib/learning/v2/chatFlow";
 import { generateStructured, llmErrorResponse, parseBody } from "@/lib/llm/client";
 import { checkRateLimit } from "@/lib/llm/rate-limit";
 import {
@@ -13,6 +13,7 @@ import {
   chatCheckPrompt,
   chatDiagnosePrompt,
   chatSummaryPrompt,
+  chatTeachPrompt,
   leakCheckPrompt,
 } from "@/lib/llm/prompts";
 import {
@@ -20,6 +21,7 @@ import {
   chatCheckOutputSchema,
   chatDiagnoseOutputSchema,
   chatSummaryOutputSchema,
+  chatTeachOutputSchema,
   chatTurnRequestSchema,
   leakCheckOutputSchema,
 } from "@/lib/llm/schemas";
@@ -118,6 +120,41 @@ export async function POST(request: Request) {
         example: scrubNullable(result.example, misconceptions),
         takeaway: scrubNullable(result.takeaway, misconceptions),
         probeQuestion: scrubNullable(result.probeQuestion, misconceptions),
+      });
+    }
+
+    if (data.phase === "teach") {
+      const misconceptions = getMisconceptionsForConcept(concept.id);
+      if (misconceptions.length === 0) {
+        return Response.json({ error: "Unknown concept" }, { status: 404 });
+      }
+      const clean = (text: string) => scrubMisconceptionIds(text, misconceptions);
+      // The number of turns is fixed here, not left to the model or the client.
+      const done = data.turn >= TEACH_TURNS;
+
+      const result = await generateStructured({
+        ...chatTeachPrompt({
+          concept,
+          misconceptions,
+          history: data.history.slice(-CHAT_HISTORY_LIMIT),
+          explanation: data.explanation,
+          turn: data.turn,
+          maxTurns: TEACH_TURNS,
+        }),
+        schema: chatTeachOutputSchema,
+      });
+
+      return Response.json({
+        reply: clean(result.reply),
+        done,
+        // Only revealed at the end, so the beginner's questions don't grade the learner.
+        assessment: done
+          ? {
+              verdict: result.assessment.verdict,
+              clear: result.assessment.clear.map(clean),
+              gaps: result.assessment.gaps.map(clean),
+            }
+          : null,
       });
     }
 
