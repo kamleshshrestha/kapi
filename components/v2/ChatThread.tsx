@@ -41,7 +41,7 @@ export default function ChatThread({
           <ChatBubble key={i} role={message.role} text={message.text} />
         ))}
         {pending && (
-          <p className="text-sm text-foreground/50" aria-live="polite">
+          <p className="text-sm text-foreground/60" aria-live="polite">
             Kapi is typing…
           </p>
         )}
@@ -53,7 +53,7 @@ export default function ChatThread({
           />
         )}
         {summarizing && (
-          <p className="text-sm text-foreground/50" aria-live="polite">
+          <p className="text-sm text-foreground/60" aria-live="polite">
             Kapi is putting together your recap…
           </p>
         )}

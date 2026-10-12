@@ -38,7 +38,7 @@ export default function ConceptSelectorV2({
             {cardCount > 0 && (
               <Link
                 href={`/decks/${concept.id}`}
-                className="mt-1 w-fit rounded-full border border-foreground/10 px-2 py-0.5 text-xs text-foreground/50 transition-colors hover:border-primary/40 hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                className="mt-1 w-fit rounded-full border border-foreground/10 px-2 py-0.5 text-xs text-foreground/60 transition-colors hover:border-primary/40 hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
               >
                 🗂 {cardCount} cards
               </Link>
