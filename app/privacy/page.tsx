@@ -17,16 +17,15 @@ export default function PrivacyPage() {
         ← Back
       </Link>
       <h1 className="text-4xl font-semibold tracking-tight">Privacy</h1>
-      <p role="note" className="rounded-xl border border-foreground/10 p-4 text-sm">
-        Draft: the responsible person&apos;s details below still need to be filled in
-        and the text reviewed before launch.
-      </p>
-
       <section className="flex flex-col gap-3">
         <h2 className={h2}>Who is responsible</h2>
         <p className={p}>
-          [Name], [street and number, postcode, city], Germany. Contact for
-          privacy questions: [email address].
+          Kamlesh Shrestha, Emdenzeille 1, 13585 Berlin, Germany. Contact for
+          privacy questions:{" "}
+          <a href="mailto:kamleshshrestha.work@gmail.com" className="underline">
+            kamleshshrestha.work@gmail.com
+          </a>
+          .
         </p>
       </section>
 
@@ -53,7 +52,7 @@ export default function PrivacyPage() {
           and each time you sign in, and uses it for nothing else. The email is
           stored with your account, is included in your download and is deleted
           with your account. Accounts with an email are deleted after 24 months
-          without use. Emails are sent through [email provider].
+          without use. The emails are sent through Supabase, which also hosts the account.
         </p>
       </section>
 
@@ -104,7 +103,8 @@ export default function PrivacyPage() {
           You can access and download your data, delete your account and its data,
           and withdraw consent at any time using the controls below. You can also
           contact the person responsible above, or complain to your data
-          protection authority.
+          protection authority. For Berlin that is the Berliner Beauftragte für
+          Datenschutz und Informationsfreiheit (datenschutz-berlin.de).
         </p>
       </section>
 
