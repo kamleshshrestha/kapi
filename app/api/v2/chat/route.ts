@@ -3,7 +3,7 @@ import {
   getMisconception,
   getMisconceptionsForConcept,
 } from "@/lib/learning/misconceptions";
-import type { Concept, Misconception } from "@/lib/learning/types";
+import type { Misconception } from "@/lib/learning/types";
 import type { ChatMove } from "@/lib/llm/schemas";
 import { CHAT_HISTORY_LIMIT, MAX_CHAT_TURNS, TEACH_TURNS } from "@/lib/learning/v2/chatFlow";
 import { generateStructured, llmErrorResponse, parseBody } from "@/lib/llm/client";
@@ -14,7 +14,6 @@ import {
   chatDiagnosePrompt,
   chatSummaryPrompt,
   chatTeachPrompt,
-  leakCheckPrompt,
 } from "@/lib/llm/prompts";
 import {
   chatAssistOutputSchema,
@@ -23,9 +22,9 @@ import {
   chatSummaryOutputSchema,
   chatTeachOutputSchema,
   chatTurnRequestSchema,
-  leakCheckOutputSchema,
 } from "@/lib/llm/schemas";
 import { scrubMisconceptionIds } from "@/lib/llm/scrub";
+import { guardAgainstLeak } from "@/lib/llm/leakGuard";
 import { logChatEvent } from "@/lib/privacy/eventLog";
 
 function scrubNullable(
@@ -33,46 +32,6 @@ function scrubNullable(
   misconceptions: Misconception[],
 ): string | null {
   return text === null ? null : scrubMisconceptionIds(text, misconceptions);
-}
-
-/** Shown in place of the tutor's feedback when a leak can't be checked or fixed. */
-const NEUTRAL_FEEDBACK = "You've got part of this. Take another look before we move on.";
-
-/**
- * Output check for first-try feedback and hints: the prompt forbids revealing
- * the answer, but models slip, so a reviewer call checks the text and rewrites
- * it if it leaks. If the reviewer itself fails, the feedback (which is where
- * leaks were seen) is swapped for neutral text rather than shown unchecked.
- */
-async function guardAgainstLeak(args: {
-  concept: Concept;
-  misconception: Misconception | null;
-  question: string;
-  feedback: string | null;
-  hint: string;
-  misconceptions: Misconception[];
-}): Promise<{ feedback: string | null; hint: string }> {
-  const { misconceptions, ...context } = args;
-  try {
-    const review = await generateStructured({
-      ...leakCheckPrompt(context),
-      schema: leakCheckOutputSchema,
-    });
-    if (!review.leaks) return { feedback: args.feedback, hint: args.hint };
-    return {
-      feedback:
-        args.feedback === null
-          ? null
-          : scrubMisconceptionIds(review.feedback ?? NEUTRAL_FEEDBACK, misconceptions),
-      hint: scrubMisconceptionIds(review.hint, misconceptions),
-    };
-  } catch (error) {
-    console.error("[llm] leak check failed", error);
-    return {
-      feedback: args.feedback === null ? null : NEUTRAL_FEEDBACK,
-      hint: args.hint,
-    };
-  }
 }
 
 export async function POST(request: Request) {

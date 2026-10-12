@@ -1,0 +1,447 @@
+{
+  "summary": {
+    "model": "anthropic/claude-haiku-5.5",
+    "judge": "openai/gpt-oss-120b",
+    "diagnosis": "24/24",
+    "byKind": [
+      "gap 12/12",
+      "strong 6/6",
+      "tricky 6/6"
+    ],
+    "rawLeaks": "2/18",
+    "guardedLeaks": "0/18",
+    "skippedHints": 0,
+    "errors": 0,
+    "seconds": 162
+  },
+  "results": [
+    {
+      "id": 1,
+      "conceptId": "gradient-descent",
+      "kind": "gap",
+      "expected": [
+        "gd-global-minimum"
+      ],
+      "got": "gd-global-minimum",
+      "diagnosisOk": true,
+      "verdict": "unresolved",
+      "hinted": true,
+      "text": {
+        "question": "If you ran training twice from different random starting weights and got two different final losses, what does that tell you about whether either run found the global minimum?",
+        "feedback": "You've stated the belief directly, which is a useful place to start, but your answer doesn't yet engage with the two different final losses in the question. Something in that claim deserves a second look.",
+        "hint": "Think about what a single run actually sees: it only knows the slope right where it currently stands, not whether a lower valley exists somewhere else on the loss surface.",
+        "guardedFeedback": "You've stated the belief directly, which is a useful place to start, but your answer doesn't yet engage with the two different final losses in the question. Something in that claim deserves a second look.",
+        "guardedHint": "Consider what information gradient descent actually has at the point where it stops, and how that compares with the shape of the whole loss surface."
+      },
+      "rawLeak": false,
+      "guardedLeak": false
+    },
+    {
+      "id": 2,
+      "conceptId": "gradient-descent",
+      "kind": "gap",
+      "expected": [
+        "gd-bigger-lr-better"
+      ],
+      "got": "gd-bigger-lr-better",
+      "diagnosisOk": true,
+      "verdict": "unresolved",
+      "hinted": true,
+      "text": {
+        "question": "Looking at that example, why do you think the step with the learning rate of 1.5 ended up farther from the minimum than the starting point?",
+        "feedback": "You've restated the idea that a higher learning rate always speeds things up, but that doesn't address why the 1.5 step landed farther away. That part of your answer deserves a second look.",
+        "hint": "Picture where the update lands after one step of size 1.5, and compare that spot with where the starting point sits relative to the minimum.",
+        "guardedFeedback": "You've restated the idea that a higher learning rate always speeds things up, but that doesn't address why the 1.5 step landed farther away. That part of your answer deserves a second look.",
+        "guardedHint": "Picture where the update lands after one step of size 1.5, and compare that spot with where the starting point sits relative to the minimum."
+      },
+      "rawLeak": false,
+      "guardedLeak": false
+    },
+    {
+      "id": 3,
+      "conceptId": "gradient-descent",
+      "kind": "strong",
+      "expected": [],
+      "got": null,
+      "diagnosisOk": true
+    },
+    {
+      "id": 4,
+      "conceptId": "gradient-descent",
+      "kind": "tricky",
+      "expected": [
+        "gd-gradient-direction",
+        "gd-bigger-lr-better"
+      ],
+      "got": "gd-bigger-lr-better",
+      "diagnosisOk": true,
+      "verdict": "unresolved",
+      "hinted": true,
+      "text": {
+        "question": "Using that same loss, x squared, starting at x equals 4, what do you think happens to x over several steps if the learning rate is 1.1?",
+        "feedback": "You're right that the gradient is the key quantity here, since it tells you how the loss changes as x changes. The direction you move in deserves a second look, and your answer doesn't yet say what happens to x over several steps.",
+        "hint": "At x equals 4, the gradient of x squared is positive, so think about which way x has to move to make x squared smaller.",
+        "guardedFeedback": "You're right that the gradient is the key quantity here, since it tells you how the loss changes as x changes. The direction you move in deserves a second look, and your answer doesn't yet say what happens to x over several steps.",
+        "guardedHint": "At x equals 4, the gradient of x squared is positive, so think about which way x has to move to make x squared smaller."
+      },
+      "rawLeak": false,
+      "guardedLeak": false
+    },
+    {
+      "id": 5,
+      "conceptId": "backpropagation",
+      "kind": "gap",
+      "expected": [
+        "bp-same-blame"
+      ],
+      "got": "bp-same-blame",
+      "diagnosisOk": true,
+      "verdict": "unresolved",
+      "hinted": true,
+      "text": {
+        "question": "If you think about those two weights in the example, what would make one of them get almost no update even though the error is large?",
+        "feedback": "You've named the idea that the loss gets passed back to every weight, and that's a reasonable place to start thinking. But the answer you gave doesn't explain why one weight could get almost no update, so this part deserves a second look.",
+        "hint": "Think about the path a weight sits on between it and the loss, and what happens to the signal as it travels along that path, step by step.",
+        "guardedFeedback": "You've named the idea that the loss gets passed back to every weight, and that's a reasonable place to start thinking. But the answer you gave doesn't explain why one weight could get almost no update, so this part deserves a second look.",
+        "guardedHint": "Think about the path a weight sits on between it and the loss, and what happens to the signal as it travels along that path, step by step."
+      },
+      "rawLeak": false,
+      "guardedLeak": false
+    },
+    {
+      "id": 6,
+      "conceptId": "backpropagation",
+      "kind": "gap",
+      "expected": [
+        "bp-per-weight-rerun"
+      ],
+      "got": "bp-per-weight-rerun",
+      "diagnosisOk": true,
+      "verdict": "unresolved",
+      "hinted": true,
+      "text": {
+        "question": "In your own words, what does backprop reuse from the forward pass that lets it avoid re-running the network for each weight?",
+        "feedback": "You've described a way of getting a gradient, and it's a real method, so you're thinking about how the loss responds to a weight. But the answer you gave is the approach the question was asking about avoiding, so this part deserves a second look.",
+        "hint": "Think about what the network computes on the way forward: which intermediate numbers does it produce and hold onto, and could those help you work out how each weight affects the loss without running everything again?",
+        "guardedFeedback": "You've described a way of getting a gradient, and it's a real method, so you're thinking about how the loss responds to a weight. But this part of your answer deserves a second look.",
+        "guardedHint": "Think about what the network computes on the way forward: which intermediate numbers does it produce and hold onto, and could those help you work out how each weight affects the loss without running everything again?"
+      },
+      "rawLeak": false,
+      "guardedLeak": false
+    },
+    {
+      "id": 7,
+      "conceptId": "backpropagation",
+      "kind": "strong",
+      "expected": [],
+      "got": null,
+      "diagnosisOk": true
+    },
+    {
+      "id": 8,
+      "conceptId": "backpropagation",
+      "kind": "tricky",
+      "expected": [
+        "bp-last-layer-only",
+        "bp-updates-weights"
+      ],
+      "got": "bp-last-layer-only",
+      "diagnosisOk": true,
+      "verdict": "unresolved",
+      "hinted": true,
+      "text": {
+        "question": "So if the output error gets sent backward, what do you think happens to a weight in the very first layer when the chain rule reaches it?",
+        "feedback": "You've correctly located the loss at the output, and that's a solid starting point. But your answer ends with the claim that only the output layer's weights get gradients, and that part deserves a second look.",
+        "hint": "Think about what the chain rule does when it passes the error backward: does the signal stop at the last layer, or does it keep flowing into the layers before it?",
+        "guardedFeedback": "You've correctly located the loss at the output, and that's a solid starting point. The final part of your answer, about which weights receive gradients, deserves a second look.",
+        "guardedHint": "Consider how the error signal is passed from layer to layer as the chain rule moves backward, and what it must pass through to reach a weight in the first layer."
+      },
+      "rawLeak": false,
+      "guardedLeak": false
+    },
+    {
+      "id": 9,
+      "conceptId": "overfitting",
+      "kind": "gap",
+      "expected": [
+        "of-more-complexity-always-better"
+      ],
+      "got": "of-more-complexity-always-better",
+      "diagnosisOk": true,
+      "verdict": "unresolved",
+      "hinted": true,
+      "text": {
+        "question": "So if your big model is doing great on training data but poorly on new houses, what would you try first, and why would adding even more parameters probably not help?",
+        "feedback": "You've stated the idea that more parameters means more power, and that's a common intuition worth examining. But the part about a bigger model always doing better on new data deserves a second look.",
+        "hint": "Think about what happens when a model has so much flexibility that it starts memorising quirks of the training houses, like a stray detail that has nothing to do with price, and what that does to the houses it hasn't seen before.",
+        "guardedFeedback": "You've stated the idea that more parameters means more power, and that's a common intuition worth examining. But the part about a bigger model always doing better on new data deserves a second look.",
+        "guardedHint": "Think about how a model with a lot of flexibility responds to the particular details of its training houses, and whether those details carry over to houses it has never seen."
+      },
+      "rawLeak": false,
+      "guardedLeak": false
+    },
+    {
+      "id": 10,
+      "conceptId": "overfitting",
+      "kind": "gap",
+      "expected": [
+        "of-confused-with-underfit"
+      ],
+      "got": "of-confused-with-underfit",
+      "diagnosisOk": true,
+      "verdict": "unresolved",
+      "hinted": true,
+      "text": {
+        "question": "Looking at those two example models, which one would you train longer, and what would you check to decide?",
+        "feedback": "You've noticed that the model is struggling on new data, and that's the right thing to focus on. But your answer assumes that any poor result means the same fix, and that part deserves a second look.",
+        "hint": "Before deciding, think about how each model does on the data it was trained on, not only on the new data.",
+        "guardedFeedback": "You've noticed that the model is struggling on new data, and that's the right thing to focus on. One part of your answer deserves a second look.",
+        "guardedHint": "Before deciding, think about how each model does on the data it was trained on, not only on the new data."
+      },
+      "rawLeak": true,
+      "guardedLeak": false
+    },
+    {
+      "id": 11,
+      "conceptId": "overfitting",
+      "kind": "strong",
+      "expected": [],
+      "got": null,
+      "diagnosisOk": true
+    },
+    {
+      "id": 12,
+      "conceptId": "overfitting",
+      "kind": "tricky",
+      "expected": [
+        "of-any-gap-is-overfit"
+      ],
+      "got": "of-any-gap-is-overfit",
+      "diagnosisOk": true,
+      "verdict": "unresolved",
+      "hinted": true,
+      "text": {
+        "question": "So if you saw training accuracy at 95% and test accuracy at 93%, would you say the model is overfitting, and what would you look at to decide?",
+        "feedback": "You've picked up that test accuracy sitting below training accuracy is the thing to watch, and that's a sensible place to start. But the rule you're using to call it overfitting deserves a second look.",
+        "hint": "Think about what a model does with the data it trained on compared with data it has never seen, and ask how big the gap between 95% and 93% actually is.",
+        "guardedFeedback": "You've picked up that test accuracy sitting below training accuracy is the thing to watch, and that's a sensible place to start. But the rule you're using to call it overfitting deserves a second look.",
+        "guardedHint": "Think about what a model does with the data it trained on compared with data it has never seen, and ask how big the gap between 95% and 93% actually is."
+      },
+      "rawLeak": false,
+      "guardedLeak": false
+    },
+    {
+      "id": 13,
+      "conceptId": "train-test-split",
+      "kind": "gap",
+      "expected": [
+        "tts-waste-of-data"
+      ],
+      "got": "tts-waste-of-data",
+      "diagnosisOk": true,
+      "verdict": "unresolved",
+      "hinted": true,
+      "text": {
+        "question": "If the training score is so high, why do you think the 71% on unseen rows is the number you should trust when deciding whether the model is good enough to use?",
+        "feedback": "You've stated the belief that a training score already tells you how good the model is, and that holding data back only takes away learning material. That's the instinct we need to look at more closely, so this part deserves a second look.",
+        "hint": "Think about what the model has already seen while it was training, and whether it could be showing off a little on rows it has memorized.",
+        "guardedFeedback": "You've stated the belief that a training score already tells you how good the model is, and that holding data back only takes away learning material. That's the instinct we need to look at more closely, so this part deserves a second look.",
+        "guardedHint": "Think about which rows the model had access to while it was learning, and who gets to judge the model on rows it has never encountered."
+      },
+      "rawLeak": false,
+      "guardedLeak": false
+    },
+    {
+      "id": 14,
+      "conceptId": "train-test-split",
+      "kind": "gap",
+      "expected": [
+        "tts-preprocess-before-split"
+      ],
+      "got": "tts-preprocess-before-split",
+      "diagnosisOk": true,
+      "verdict": "unresolved",
+      "hinted": true,
+      "text": {
+        "question": "So if you had a missing value in a test row, which rows would you use to choose the value to fill it in, and why?",
+        "feedback": "You gave a clear position, but you didn't say which rows you'd use to pick the fill-in value, or why. The part about splitting afterwards is the piece that deserves a second look.",
+        "hint": "Think about where the number you fill in actually comes from, and whether the values in the test rows could be part of that calculation.",
+        "guardedFeedback": "You gave a clear position, but you didn't say which rows you'd use to pick the fill-in value, or why. The part about splitting afterwards is the piece that deserves a second look.",
+        "guardedHint": "Think about where the number you fill in actually comes from, and whether the values in the test rows could be part of that calculation."
+      },
+      "rawLeak": false,
+      "guardedLeak": false
+    },
+    {
+      "id": 15,
+      "conceptId": "train-test-split",
+      "kind": "strong",
+      "expected": [],
+      "got": null,
+      "diagnosisOk": true
+    },
+    {
+      "id": 16,
+      "conceptId": "train-test-split",
+      "kind": "tricky",
+      "expected": [
+        "tts-random-always-fine"
+      ],
+      "got": "tts-random-always-fine",
+      "diagnosisOk": true,
+      "verdict": "unresolved",
+      "hinted": true,
+      "text": {
+        "question": "If you had five years of monthly sales data and wanted to predict next month's sales, how would you cut the rows into training and test sets?",
+        "feedback": "You've named a common instinct: shuffling and splitting at random feels like the fair way to build a test set. That idea deserves a second look when the rows have an order to them, as monthly sales do.",
+        "hint": "Think about what the model would have access to at prediction time: when you predict next month, which months are you allowed to have already seen, and where would the test months sit in time?",
+        "guardedFeedback": "Your answer about how to cut the rows deserves a second look.",
+        "guardedHint": "Consider what information the model will actually have when it makes the prediction, and how that relates to the order of the rows."
+      },
+      "rawLeak": false,
+      "guardedLeak": false
+    },
+    {
+      "id": 17,
+      "conceptId": "linear-regression",
+      "kind": "gap",
+      "expected": [
+        "lr-extrapolate-freely"
+      ],
+      "got": "lr-extrapolate-freely",
+      "diagnosisOk": true,
+      "verdict": "unresolved",
+      "hinted": true,
+      "text": {
+        "question": "So if you had houses only between 50 and 150 square metres, what would you do before trusting a prediction for a 1000 square metre mansion?",
+        "feedback": "You picked up on the idea that a line fitting the data well matters, and that's a useful starting point. But the part about it being just as reliable for any input, however far away, deserves a second look.",
+        "hint": "Think about which houses the line was actually built from, and whether those are the same houses as a 1000 square metre mansion.",
+        "guardedFeedback": "You picked up on the idea that a line fitting the data well matters, and that's a useful starting point. But the part about it being just as reliable for any input, however far away, deserves a second look.",
+        "guardedHint": "Think about which houses the line was actually built from, and whether those are the same houses as a 1000 square metre mansion."
+      },
+      "rawLeak": true,
+      "guardedLeak": false
+    },
+    {
+      "id": 18,
+      "conceptId": "linear-regression",
+      "kind": "gap",
+      "expected": [
+        "lr-big-coef-important"
+      ],
+      "got": "lr-big-coef-important",
+      "diagnosisOk": true,
+      "verdict": "unresolved",
+      "hinted": true,
+      "text": {
+        "question": "If you measured house size in square feet instead of square meters, what would happen to its coefficient, and would that change how much size actually matters?",
+        "feedback": "You've named the idea that a larger coefficient means a feature matters more, and that's the exact belief we're going to look at together. Something in your answer deserves a second look, especially how the units of size would affect the number.",
+        "hint": "Think about what a single square meter is compared with a single square foot, and how many of each would be needed to describe the same house.",
+        "guardedFeedback": "You've named the idea that a larger coefficient means a feature matters more, and that's the exact belief we're going to look at together. Something in your answer deserves a second look, especially how the units of size would affect the number.",
+        "guardedHint": "Think about what a single square meter is compared with a single square foot, and how many of each would be needed to describe the same house."
+      },
+      "rawLeak": false,
+      "guardedLeak": false
+    },
+    {
+      "id": 19,
+      "conceptId": "linear-regression",
+      "kind": "strong",
+      "expected": [],
+      "got": null,
+      "diagnosisOk": true
+    },
+    {
+      "id": 20,
+      "conceptId": "linear-regression",
+      "kind": "tricky",
+      "expected": [
+        "lr-outlier-harmless"
+      ],
+      "got": "lr-outlier-harmless",
+      "diagnosisOk": true,
+      "verdict": "unresolved",
+      "hinted": true,
+      "text": {
+        "question": "So before you leave that wildly off point in, what would you check to see how much it is actually moving the line?",
+        "feedback": "You've stated the belief directly, that one unusual point has little say when there are enough points, but you haven't yet said what you would look at to measure its pull on the line. That part deserves a second look.",
+        "hint": "Think about what happens to the line if you imagine removing that one far-off point and redrawing it, and whether the line would stay in the same place.",
+        "guardedFeedback": "You've stated the belief directly, that one unusual point has little say when there are enough points, but you haven't yet said what you would look at to measure its pull on the line. That part deserves a second look.",
+        "guardedHint": "Think about what happens to the line if you imagine removing that one far-off point and redrawing it, and whether the line would stay in the same place."
+      },
+      "rawLeak": false,
+      "guardedLeak": false
+    },
+    {
+      "id": 21,
+      "conceptId": "logistic-regression",
+      "kind": "gap",
+      "expected": [
+        "lgr-curved-boundary"
+      ],
+      "got": "lgr-curved-boundary",
+      "diagnosisOk": true,
+      "verdict": "unresolved",
+      "hinted": true,
+      "text": {
+        "question": "So if the boundary is always a straight line, what would you need to add to the inputs before logistic regression could handle a circular pattern?",
+        "feedback": "You're holding onto the idea that the sigmoid's S-shape is what gives logistic regression its boundary, and that's a sensible thing to reach for. Something in that reasoning deserves a second look.",
+        "hint": "Think about what the sigmoid is applied to: the sigmoid takes one number, a weighted sum of the inputs, and where does the classifier decide between the two classes based on that number?",
+        "guardedFeedback": "You've got part of this right, but one part of your answer deserves a second look.",
+        "guardedHint": "Think about which quantity the classifier actually compares against a cutoff, and what kind of boundary that quantity produces."
+      },
+      "rawLeak": false,
+      "guardedLeak": false
+    },
+    {
+      "id": 22,
+      "conceptId": "logistic-regression",
+      "kind": "gap",
+      "expected": [
+        "lgr-threshold-always-half"
+      ],
+      "got": "lgr-threshold-always-half",
+      "diagnosisOk": true,
+      "verdict": "unresolved",
+      "hinted": true,
+      "text": {
+        "question": "If a spam filter sends a real email to the spam folder, that's a costly mistake for many people. Would you raise or lower the cutoff to deal with that, and why?",
+        "feedback": "You've restated the rule you started with, that the cutoff is 0.5 and should never change. That part of your answer deserves a second look, especially in light of the costly mistake the question describes.",
+        "hint": "Think about what happens to a real email when the filter is strict, and whether the 0.5 line is a law of nature or just a starting point someone picked.",
+        "guardedFeedback": "The part of your answer that keeps the cutoff fixed deserves a second look, especially given the costly mistake the question describes.",
+        "guardedHint": "Think about what happens to a real email when the filter is strict, and what the cutoff's position is actually based on."
+      },
+      "rawLeak": false,
+      "guardedLeak": false
+    },
+    {
+      "id": 23,
+      "conceptId": "logistic-regression",
+      "kind": "strong",
+      "expected": [],
+      "got": null,
+      "diagnosisOk": true
+    },
+    {
+      "id": 24,
+      "conceptId": "logistic-regression",
+      "kind": "tricky",
+      "expected": [
+        "lgr-sigmoid-cosmetic"
+      ],
+      "got": "lgr-sigmoid-cosmetic",
+      "diagnosisOk": true,
+      "verdict": "unresolved",
+      "hinted": true,
+      "text": {
+        "question": "If a straight line can already produce a number for each input, what goes wrong when that number is something like 1.6 or -0.3, and why does that matter for how you'd read the model's answer?",
+        "feedback": "You've restated the belief that a straight line would work just as well and the sigmoid only tidies the output, but you haven't yet said what happens to values like 1.6 or -0.3. That part deserves a second look.",
+        "hint": "Think about what a probability is allowed to be, and whether a number like -0.3 or 1.6 could ever be read as a chance of something happening.",
+        "guardedFeedback": "You've restated the belief that a straight line would work just as well and the sigmoid only tidies the output, but you haven't yet said what happens to values like 1.6 or -0.3. That part deserves a second look.",
+        "guardedHint": "Think about what a probability is allowed to be, and whether a number like -0.3 or 1.6 could ever be read as a chance of something happening."
+      },
+      "rawLeak": false,
+      "guardedLeak": false
+    }
+  ]
+}

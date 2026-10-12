@@ -37,6 +37,7 @@ async function chat(
   messages: ChatMessage[],
   jsonSchema: unknown,
   maxTokens: number,
+  model: string,
 ): Promise<string> {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) throw new LLMHttpError(401, "OPENROUTER_API_KEY is not set");
@@ -48,7 +49,7 @@ async function chat(
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model: MODEL,
+      model,
       messages,
       max_tokens: maxTokens,
       response_format: {
@@ -101,10 +102,11 @@ async function chatWithRetry(
   messages: ChatMessage[],
   jsonSchema: unknown,
   maxTokens: number,
+  model: string,
 ): Promise<string> {
   for (let retry = 0; ; retry++) {
     try {
-      return await chat(messages, jsonSchema, maxTokens);
+      return await chat(messages, jsonSchema, maxTokens, model);
     } catch (error) {
       if (retry >= MAX_TRANSIENT_RETRIES || !isTransient(error)) throw error;
       console.warn(
@@ -130,11 +132,14 @@ export async function generateStructured<S extends z.ZodType>({
   user,
   schema,
   maxTokens = 2000,
+  model = MODEL,
 }: {
   system: string;
   user: string;
   schema: S;
   maxTokens?: number;
+  /** Only the evaluation runner sets this (a different model as judge); the app always uses MODEL. */
+  model?: string;
 }): Promise<z.infer<S>> {
   const jsonSchema = z.toJSONSchema(schema);
   // Belt and braces: not every free model honors response_format.
@@ -148,7 +153,7 @@ export async function generateStructured<S extends z.ZodType>({
 
   let lastProblem = "";
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-    const text = await chatWithRetry(messages, jsonSchema, maxTokens);
+    const text = await chatWithRetry(messages, jsonSchema, maxTokens, model);
 
     let problem: string;
     try {
