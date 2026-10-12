@@ -13,17 +13,25 @@ export default function ImpressumPage() {
         ← Back
       </Link>
       <h1 className="text-4xl font-semibold tracking-tight">Impressum</h1>
-      <p role="note" className="rounded-xl border border-foreground/10 p-4 text-sm">
-        Draft: the details below must be filled in and checked before launch.
-      </p>
-      <p className="leading-7 text-foreground/80">
-        [Name]
-        <br />
-        [Street and number]
-        <br />
-        [Postcode and city], Germany
-      </p>
-      <p className="leading-7 text-foreground/80">Contact: [email address]</p>
+      <section className="flex flex-col gap-3">
+        <h2 className="text-xl font-semibold">Information pursuant to § 5 DDG</h2>
+        <p className="leading-7 text-foreground/80">
+          Kamlesh Shrestha
+          <br />
+          Emdenzeille 1
+          <br />
+          13585 Berlin, Germany
+        </p>
+      </section>
+      <section className="flex flex-col gap-3">
+        <h2 className="text-xl font-semibold">Contact</h2>
+        <p className="leading-7 text-foreground/80">
+          Email:{" "}
+          <a href="mailto:kamleshshrestha.work@gmail.com" className="underline">
+            kamleshshrestha.work@gmail.com
+          </a>
+        </p>
+      </section>
     </main>
   );
 }
