@@ -42,3 +42,4 @@ next-env.d.ts
 
 # evaluation output
 /evals/last-run.json
+/evals/last-teach-run.json
