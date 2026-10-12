@@ -34,12 +34,15 @@ Package manager is pnpm (`packageManager: pnpm@10.33.0` in package.json).
 
 ```
 app/
-├── page.tsx                 concept selection
+├── page.tsx                 concept selection (promise, intro, sync notice, email account)
 ├── learn/[concept]/         the chat session
+├── teach/[concept]/         teach-it-back (explain to a beginner)
 ├── decks/[concept]/         flashcard review (Core + "From you" decks)
+├── feedback/, privacy/, impressum/
 └── api/v2/
-    ├── chat/route.ts        chat phases: diagnose, check, assist, summary (leak-checked hints)
-    └── flashcards/route.ts  stub (501)
+    ├── chat/route.ts        chat phases: diagnose, check, assist, summary, teach (leak-checked hints)
+    ├── feedback/route.ts    learner feedback (scrubbed, server-written)
+    └── account/             DELETE (erasure) and export/ (JSON download)
 components/v2/               ConceptSelectorV2, ChatThread, ChatBubble, ChatInputBar, QuickReplyChips,
                              AssistChips, SessionSummary, FlashcardDeck, Flashcard
 hooks/
