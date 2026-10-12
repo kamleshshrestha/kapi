@@ -46,6 +46,18 @@ export default function PrivacyPage() {
       </section>
 
       <section className="flex flex-col gap-3">
+        <h2 className={h2}>Email (optional)</h2>
+        <p className={p}>
+          You can add an email address to your account so you can sign in from
+          another device. Kapi sends a 6-digit code to that address to confirm it
+          and each time you sign in, and uses it for nothing else. The email is
+          stored with your account, is included in your download and is deleted
+          with your account. Accounts with an email are deleted after 24 months
+          without use. Emails are sent through [email provider].
+        </p>
+      </section>
+
+      <section className="flex flex-col gap-3">
         <h2 className={h2}>What is sent to the AI service</h2>
         <p className={p}>
           To reply in the chat, the text you type is sent to an AI service
@@ -82,7 +94,7 @@ export default function PrivacyPage() {
         <p className={p}>
           Account data is stored with Supabase in Frankfurt, and the app is hosted
           on Vercel in Frankfurt. Anonymous accounts that are not used for 12
-          months are deleted automatically.
+          months are deleted automatically (24 months if they have an email).
         </p>
       </section>
 

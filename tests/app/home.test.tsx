@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/components/v2/ConceptSelectorV2", () => ({ default: () => null }));
 vi.mock("@/components/v2/SyncNotice", () => ({ default: () => null }));
+vi.mock("@/components/v2/EmailAccount", () => ({ default: () => null }));
 
 import V2Home from "@/app/page";
 import ImpressumPage from "@/app/impressum/page";
