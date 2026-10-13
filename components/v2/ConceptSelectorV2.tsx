@@ -1,4 +1,5 @@
 import Link from "next/link";
+import CardCountLink from "@/components/v2/CardCountLink";
 import ConceptLevels from "@/components/v2/ConceptLevels";
 import type { Concept } from "@/lib/learning/types";
 import { getMisconceptionsForConcept } from "@/lib/learning/misconceptions";
@@ -11,6 +12,7 @@ export default function ConceptSelectorV2({
   return (
     <ul className="grid gap-4 sm:grid-cols-2">
       {concepts.map((concept) => {
+        // Core cards; the learner's own cards are added in the browser.
         const cardCount = getMisconceptionsForConcept(concept.id).length;
         return (
           <li
@@ -35,14 +37,7 @@ export default function ConceptSelectorV2({
               </span>
             </Link>
             <ConceptLevels conceptId={concept.id} compact hideWhenEmpty />
-            {cardCount > 0 && (
-              <Link
-                href={`/decks/${concept.id}`}
-                className="mt-1 w-fit rounded-full border border-foreground/10 px-2 py-0.5 text-xs text-foreground/60 transition-colors hover:border-primary/40 hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-              >
-                🗂 {cardCount} cards
-              </Link>
-            )}
+            {cardCount > 0 && <CardCountLink conceptId={concept.id} coreCount={cardCount} />}
           </li>
         );
       })}
