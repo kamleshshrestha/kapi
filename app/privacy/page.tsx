@@ -59,9 +59,32 @@ export default function PrivacyPage() {
       <section className="flex flex-col gap-3">
         <h2 className={h2}>What is sent to the AI service</h2>
         <p className={p}>
-          To reply in the chat, the text you type is sent to an AI service
-          (OpenRouter and the model provider it routes to) and processed there.
-          Please do not type personal details about yourself or others.
+          To reply in the chat, the text you type is sent to an AI service:
+          OpenRouter, which passes it to the model provider that writes the reply
+          (currently Anthropic&rsquo;s Claude). They process it only to produce
+          that reply. Kapi does not send your name, email, account or IP address
+          along with it. Please do not type personal details about yourself or
+          others.
+        </p>
+        <p className={p}>
+          Kapi asks OpenRouter to use only providers that neither store nor train
+          on messages, and has switched off the storing of prompts in its
+          OpenRouter account. OpenRouter acts as a processor for Kapi under a{" "}
+          <a
+            href="https://openrouter.ai/data-processing-agreement"
+            rel="noopener noreferrer"
+            className="underline"
+          >
+            data processing agreement
+          </a>{" "}
+          and states that it does not use messages for training. Beyond these
+          settings, Kapi cannot control how the model provider handles the data,
+          which is covered by the provider&rsquo;s own terms.
+        </p>
+        <p className={p}>
+          OpenRouter is based in the USA, so your messages may be processed there.
+          Transfers outside the EU rely on the standard contractual clauses
+          approved by the European Commission.
         </p>
       </section>
 
