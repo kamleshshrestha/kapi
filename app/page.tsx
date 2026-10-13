@@ -2,6 +2,7 @@ import Image from "next/image";
 import ConceptSelectorV2 from "@/components/v2/ConceptSelectorV2";
 import EmailAccount from "@/components/v2/EmailAccount";
 import SyncNotice from "@/components/v2/SyncNotice";
+import { isEmailSignInEnabled } from "@/lib/features";
 import { concepts } from "@/lib/learning/concepts";
 
 export default function V2Home() {
@@ -52,7 +53,7 @@ export default function V2Home() {
 
       <div className="flex flex-col gap-3">
         <SyncNotice />
-        <EmailAccount />
+        {isEmailSignInEnabled() && <EmailAccount />}
       </div>
 
       <section aria-labelledby="pick-concept" className="flex flex-col gap-4">
