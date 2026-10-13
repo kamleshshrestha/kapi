@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import DataControls from "@/components/v2/DataControls";
+import { isEmailSignInEnabled } from "@/lib/features";
 
 export const metadata: Metadata = {
   title: "Privacy — Kapi",
@@ -44,17 +45,19 @@ export default function PrivacyPage() {
         </p>
       </section>
 
-      <section className="flex flex-col gap-3">
-        <h2 className={h2}>Email (optional)</h2>
-        <p className={p}>
-          You can add an email address to your account so you can sign in from
-          another device. Kapi sends a 6-digit code to that address to confirm it
-          and each time you sign in, and uses it for nothing else. The email is
-          stored with your account, is included in your download and is deleted
-          with your account. Accounts with an email are deleted after 24 months
-          without use. The emails are sent through Supabase, which also hosts the account.
-        </p>
-      </section>
+      {isEmailSignInEnabled() && (
+        <section className="flex flex-col gap-3">
+          <h2 className={h2}>Email (optional)</h2>
+          <p className={p}>
+            You can add an email address to your account so you can sign in from
+            another device. Kapi sends a 6-digit code to that address to confirm it
+            and each time you sign in, and uses it for nothing else. The email is
+            stored with your account, is included in your download and is deleted
+            with your account. Accounts with an email are deleted after 24 months
+            without use. The emails are sent through Supabase, which also hosts the account.
+          </p>
+        </section>
+      )}
 
       <section className="flex flex-col gap-3">
         <h2 className={h2}>What is sent to the AI service</h2>

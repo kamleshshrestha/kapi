@@ -43,6 +43,17 @@ describe("privacy page", () => {
     );
   });
 
+  it("describes the email option only while it is switched on", () => {
+    const off = render(<PrivacyPage />);
+    expect(screen.queryByRole("heading", { name: "Email (optional)" })).not.toBeInTheDocument();
+    off.unmount();
+
+    vi.stubEnv("NEXT_PUBLIC_EMAIL_SIGNIN", "on");
+    render(<PrivacyPage />);
+    expect(screen.getByRole("heading", { name: "Email (optional)" })).toBeInTheDocument();
+    vi.unstubAllEnvs();
+  });
+
   it("says usage is counted as daily totals without identifiers", () => {
     const { container } = render(<PrivacyPage />);
     expect(screen.getByRole("heading", { name: "Usage counts" })).toBeInTheDocument();
