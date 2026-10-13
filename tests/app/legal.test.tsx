@@ -31,6 +31,13 @@ describe.each([
 });
 
 describe("privacy page", () => {
+  it("says usage is counted as daily totals without identifiers", () => {
+    const { container } = render(<PrivacyPage />);
+    expect(screen.getByRole("heading", { name: "Usage counts" })).toBeInTheDocument();
+    expect(container).toHaveTextContent("daily totals");
+    expect(container).toHaveTextContent("cannot be traced to you");
+  });
+
   it("names the Berlin data protection authority", () => {
     const { container } = render(<PrivacyPage />);
     expect(container).toHaveTextContent("Berliner Beauftragte für Datenschutz und Informationsfreiheit");

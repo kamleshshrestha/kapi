@@ -89,6 +89,16 @@ export default function PrivacyPage() {
       </section>
 
       <section className="flex flex-col gap-3">
+        <h2 className={h2}>Usage counts</h2>
+        <p className={p}>
+          Kapi counts how often it is used, as daily totals: for example how many
+          chats were started or finished per concept, and how many requests failed
+          or were refused. A total has no account, address, cookie or text attached,
+          so it cannot be traced to you, and nothing is counted in your browser.
+        </p>
+      </section>
+
+      <section className="flex flex-col gap-3">
         <h2 className={h2}>Where it is stored, and for how long</h2>
         <p className={p}>
           Account data is stored with Supabase in Frankfurt, and the app is hosted
