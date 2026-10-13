@@ -1,4 +1,5 @@
 import { createHmac } from "node:crypto";
+import { countFloodEvent } from "@/lib/analytics/counter";
 import { getVerifiedUser } from "@/lib/supabase/user";
 import { createRedisCounter } from "./rate-limit-redis";
 
@@ -147,6 +148,7 @@ export async function checkRateLimit(request: Request): Promise<Response | null>
     : result;
   if (overall.ok) return null;
 
+  countFloodEvent("rate_limited");
   const retryAfter = Math.ceil(overall.retryAfterMs / 1000);
   return Response.json(
     { error: `Too many requests. Please try again in ${retryAfter} seconds.` },

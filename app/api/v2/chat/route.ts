@@ -25,6 +25,7 @@ import {
 } from "@/lib/llm/schemas";
 import { scrubMisconceptionIds } from "@/lib/llm/scrub";
 import { guardAgainstLeak } from "@/lib/llm/leakGuard";
+import { countEvent } from "@/lib/analytics/counter";
 import { logChatEvent } from "@/lib/privacy/eventLog";
 
 function scrubNullable(
@@ -63,6 +64,7 @@ export async function POST(request: Request) {
         schema: chatDiagnoseOutputSchema(misconceptions.map((m) => m.id)),
       });
 
+      countEvent("chat_started", { concept: concept.id });
       logChatEvent({
         sessionId: data.sessionId,
         conceptId: concept.id,
@@ -102,6 +104,11 @@ export async function POST(request: Request) {
         }),
         schema: chatTeachOutputSchema,
       });
+
+      if (data.turn === 1) countEvent("teach_started", { concept: concept.id });
+      if (done) {
+        countEvent("teach_finished", { concept: concept.id, detail: result.assessment.verdict });
+      }
 
       return Response.json({
         reply: clean(result.reply),
@@ -170,6 +177,7 @@ export async function POST(request: Request) {
         schema: chatSummaryOutputSchema,
       });
 
+      countEvent("chat_finished", { concept: concept.id });
       const clean = (text: string) => scrubMisconceptionIds(text, conceptMisconceptions);
       return Response.json({
         understood: result.understood.map(clean),
@@ -259,6 +267,8 @@ export async function POST(request: Request) {
       nextProbeQuestion,
     });
   } catch (error) {
-    return llmErrorResponse(error);
+    const response = llmErrorResponse(error);
+    countEvent("model_error", { concept: concept.id, detail: String(response.status) });
+    return response;
   }
 }

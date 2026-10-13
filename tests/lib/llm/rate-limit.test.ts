@@ -1,4 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+
+const { countFloodEvent } = vi.hoisted(() => ({ countFloodEvent: vi.fn() }));
+vi.mock("@/lib/analytics/counter", () => ({ countFloodEvent }));
+
 import { createRateLimiter, getClientId } from "@/lib/llm/rate-limit";
 
 describe("createRateLimiter", () => {
@@ -111,6 +115,15 @@ describe("checkRateLimit", () => {
     expect(blocked.status).toBe(429);
     expect(Number(blocked.headers.get("Retry-After"))).toBeGreaterThan(0);
     expect((await blocked.json()).error).toMatch(/too many requests/i);
+  });
+
+  it("counts a refused request, and only a refused one", async () => {
+    countFloodEvent.mockClear();
+    const checkRateLimit = await load({ RATE_LIMIT_MAX: "1" });
+    await checkRateLimit(from("3.3.3.3"));
+    expect(countFloodEvent).not.toHaveBeenCalled();
+    await checkRateLimit(from("3.3.3.3"));
+    expect(countFloodEvent).toHaveBeenCalledWith("rate_limited");
   });
 
   it("limits each client separately", async () => {
