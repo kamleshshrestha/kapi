@@ -1,9 +1,14 @@
 import Image from "next/image";
+import ChatBubble from "@/components/v2/ChatBubble";
 import ConceptSelectorV2 from "@/components/v2/ConceptSelectorV2";
 import EmailAccount from "@/components/v2/EmailAccount";
 import SyncNotice from "@/components/v2/SyncNotice";
 import { isEmailSignInEnabled } from "@/lib/features";
 import { concepts } from "@/lib/learning/concepts";
+import {
+  SAMPLE_EXCHANGE,
+  SAMPLE_EXCHANGE_HEADING,
+} from "@/lib/learning/v2/sampleExchange";
 
 export default function V2Home() {
   return (
@@ -50,6 +55,23 @@ export default function V2Home() {
           No sign-up needed. Saving your progress is optional.
         </p>
       </header>
+
+      {/* Collapsed by default: it answers "how does this work" for whoever
+          needs it without pushing the concept list below the fold. */}
+      <details className="rounded-xl border border-foreground/10 px-5 open:pb-5">
+        <summary className="cursor-pointer py-4 text-sm font-medium text-foreground/70">
+          {SAMPLE_EXCHANGE_HEADING}
+        </summary>
+        <div className="flex flex-col gap-3">
+          {SAMPLE_EXCHANGE.map((message, i) => (
+            <ChatBubble key={i} role={message.role} text={message.text} />
+          ))}
+          <p className="text-sm text-foreground/60">
+            Rough and half-right is what Kapi wants — that is what it reads to
+            find the gap.
+          </p>
+        </div>
+      </details>
 
       <div className="flex flex-col gap-3">
         <SyncNotice />
