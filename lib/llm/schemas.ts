@@ -52,6 +52,23 @@ export const chatCheckRequestSchema = z.object({
   verdicts: z.array(chatVerdictSchema).max(20).default([]),
 });
 
+/**
+ * The learner asking Kapi a question of their own. Reached two ways: from the
+ * checkpoint after Kapi's explanation, where it has not asked anything yet
+ * (`probeQuestion` is null), and from the `check` phase, where the model
+ * classified their message as a question.
+ */
+export const chatQuestionRequestSchema = z.object({
+  conceptId: id,
+  phase: z.literal("question"),
+  sessionId,
+  misconceptionId: id.nullable(),
+  /** Kapi's pending question, or null at the checkpoint, before it asks one. */
+  probeQuestion: z.string().trim().min(1).max(1000).nullable(),
+  learnerQuestion: freeText,
+  history: z.array(chatHistoryMessageSchema).max(30),
+});
+
 /** The learner asking for help instead of answering. */
 export const chatAssistKinds = ["hint", "lost", "rephrase"] as const;
 
@@ -88,6 +105,7 @@ export const chatTurnRequestSchema = z.discriminatedUnion("phase", [
   chatDiagnoseRequestSchema,
   chatCheckRequestSchema,
   chatAssistRequestSchema,
+  chatQuestionRequestSchema,
   chatSummaryRequestSchema,
   chatTeachRequestSchema,
 ]);

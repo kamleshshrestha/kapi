@@ -3,7 +3,7 @@ import {
   getMisconception,
   getMisconceptionsForConcept,
 } from "@/lib/learning/misconceptions";
-import type { Misconception } from "@/lib/learning/types";
+import type { Concept, Misconception } from "@/lib/learning/types";
 import type { ChatMove } from "@/lib/llm/schemas";
 import { CHAT_HISTORY_LIMIT, MAX_CHAT_TURNS, TEACH_TURNS } from "@/lib/learning/v2/chatFlow";
 import { generateStructured, llmErrorResponse, parseBody } from "@/lib/llm/client";
@@ -35,6 +35,53 @@ function scrubNullable(
   misconceptions: Misconception[],
 ): string | null {
   return text === null ? null : scrubMisconceptionIds(text, misconceptions);
+}
+
+/**
+ * Answers a question the learner asked instead of answering Kapi's. Shared by
+ * the checkpoint after Kapi's explanation (no question pending yet) and by a
+ * `check` turn the model classified as a question.
+ */
+async function answerLearnerQuestion({
+  concept,
+  misconception,
+  misconceptions,
+  probeQuestion,
+  learnerQuestion,
+  history,
+}: {
+  concept: Concept;
+  misconception: Misconception | null;
+  misconceptions: Misconception[];
+  /** Kapi's pending question, or null at the checkpoint. */
+  probeQuestion: string | null;
+  learnerQuestion: string;
+  history: { role: "kapi" | "learner"; text: string }[];
+}): Promise<string> {
+  const asked = await generateStructured({
+    ...chatQuestionPrompt({
+      concept,
+      misconception,
+      question: probeQuestion,
+      history,
+      learnerQuestion,
+    }),
+    schema: chatQuestionOutputSchema,
+  });
+  const reply = scrubMisconceptionIds(asked.reply, misconceptions);
+
+  // Nothing to give away until Kapi has asked something, so the reviewer only
+  // runs when a question is pending: there, the learner's question can itself
+  // be the answer to it.
+  if (probeQuestion === null) return reply;
+  return guardQuestionReply({
+    concept,
+    misconception,
+    question: probeQuestion,
+    learnerQuestion,
+    reply,
+    misconceptions,
+  });
 }
 
 export async function POST(request: Request) {
@@ -192,6 +239,23 @@ export async function POST(request: Request) {
       });
     }
 
+    // The learner said at the checkpoint that they had a question, or asked one
+    // with no question of Kapi's pending. No classification is needed: they
+    // told us. Nothing about the conversation's progress moves.
+    if (data.phase === "question") {
+      const reply = await answerLearnerQuestion({
+        concept,
+        misconception,
+        misconceptions: conceptMisconceptions,
+        probeQuestion: data.probeQuestion,
+        learnerQuestion: data.learnerQuestion,
+        history,
+      });
+
+      countEvent("learner_question", { concept: concept.id });
+      return Response.json({ intent: "question", reply });
+    }
+
     // data.phase === "check"
     const result = await generateStructured({
       ...chatCheckPrompt({
@@ -213,27 +277,13 @@ export async function POST(request: Request) {
     // are not trusted here: a second, focused call answers them and the
     // question Kapi asked stays pending, so this costs no turn and no verdict.
     if (result.learnerIntent === "question") {
-      const asked = await generateStructured({
-        ...chatQuestionPrompt({
-          concept,
-          misconception,
-          question: data.probeQuestion,
-          history,
-          learnerQuestion: data.answer,
-        }),
-        schema: chatQuestionOutputSchema,
-      });
-
-      // Their question can itself be the answer to the pending question, so
-      // the reply is reviewed too — by the reviewer that trims a giveaway and
-      // keeps the teaching, not the one that rewrites hints into nudges.
-      const reply = await guardQuestionReply({
+      const reply = await answerLearnerQuestion({
         concept,
         misconception,
-        question: data.probeQuestion,
-        learnerQuestion: data.answer,
-        reply: scrubMisconceptionIds(asked.reply, conceptMisconceptions),
         misconceptions: conceptMisconceptions,
+        probeQuestion: data.probeQuestion,
+        learnerQuestion: data.answer,
+        history,
       });
 
       countEvent("learner_question", { concept: concept.id });

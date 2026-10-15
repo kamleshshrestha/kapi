@@ -417,6 +417,88 @@ describe("POST /api/v2/chat leak check on hints", () => {
   });
 });
 
+describe("POST /api/v2/chat question phase", () => {
+  // Reached from the checkpoint after Kapi's explanation: the learner said they
+  // had a question, so no classification is needed and nothing is pending.
+  const questionPhaseBody = {
+    conceptId: "overfitting",
+    phase: "question",
+    misconceptionId: MISCONCEPTION,
+    probeQuestion: null,
+    learnerQuestion: "What does held-out data mean?",
+    history: [
+      { role: "kapi", text: "Hey! How would you describe overfitting?" },
+      { role: "learner", text: "The training score is the one that matters." },
+      { role: "kapi", text: "You're leaning on the training score." },
+      { role: "kapi", text: "Does that make sense so far?" },
+    ],
+  };
+
+  it("answers the question in one call, with no reviewer pass", async () => {
+    mockedGenerate.mockResolvedValueOnce({
+      reply: "Held-out data is a chunk you keep back from training to test on.",
+    });
+
+    const response = await post(questionPhaseBody);
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      intent: "question",
+      reply: "Held-out data is a chunk you keep back from training to test on.",
+    });
+    // Nothing has been asked yet, so there is no answer to give away and the
+    // reviewer would only cost a second call.
+    expect(mockedGenerate).toHaveBeenCalledTimes(1);
+  });
+
+  it("tells the model no question is pending", async () => {
+    mockedGenerate.mockResolvedValueOnce({
+      reply: "Held-out data is a chunk you keep back from training to test on.",
+    });
+
+    await post(questionPhaseBody);
+
+    const { user, system } = mockedGenerate.mock.calls[0][0];
+    expect(user).toContain("What does held-out data mean?");
+    expect(user).not.toContain("still waiting to be answered");
+    expect(system).toContain("they said they had a question");
+    expect(system).toContain("no answer to hold back");
+  });
+
+  it("reviews the reply when a question of Kapi's is pending", async () => {
+    mockedGenerate
+      .mockResolvedValueOnce({ reply: "Yes, that gap is overfitting." })
+      .mockResolvedValueOnce({ leaks: true, reply: "A gap is what to look at. What do you think?" });
+
+    const json = await (
+      await post({
+        ...questionPhaseBody,
+        probeQuestion: "A model scores 99% on train and 70% on test. Is it good?",
+      })
+    ).json();
+
+    expect(json.reply).toBe("A gap is what to look at. What do you think?");
+    expect(mockedGenerate).toHaveBeenCalledTimes(2);
+  });
+
+  it("rejects a question with no text", async () => {
+    const response = await post({ ...questionPhaseBody, learnerQuestion: "   " });
+
+    expect(response.status).toBe(400);
+    expect(mockedGenerate).not.toHaveBeenCalled();
+  });
+
+  it("rejects a misconception from another concept", async () => {
+    const response = await post({
+      ...questionPhaseBody,
+      misconceptionId: "gd-global-minimum",
+    });
+
+    expect(response.status).toBe(404);
+    expect(mockedGenerate).not.toHaveBeenCalled();
+  });
+});
+
 describe("POST /api/v2/chat learner questions mid-chat", () => {
   // The learner typed a question instead of answering. The check call says so,
   // a second call answers it, and the reviewer checks that reply for a leak.

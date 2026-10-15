@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { ASSIST_ACTIONS, useV2ChatSession } from "@/hooks/useV2ChatSession";
 import AssistChips from "@/components/v2/AssistChips";
+import GateChips from "@/components/v2/GateChips";
 import SessionSummary from "@/components/v2/SessionSummary";
 import FeedbackForm from "@/components/v2/FeedbackForm";
 import ChatBubble from "@/components/v2/ChatBubble";
@@ -27,6 +28,7 @@ export default function ChatThread({
     error,
     submit,
     assist,
+    gate,
     retry,
     canRetry,
     summary,
@@ -128,6 +130,7 @@ export default function ChatThread({
         </Link>
       ) : (
         <div className="flex flex-col gap-3">
+          {phase === "await-gate" && <GateChips disabled={pending} onPick={gate} />}
           {phase === "await-check-answer" && (
             <AssistChips actions={ASSIST_ACTIONS} disabled={pending} onPick={assist} />
           )}
@@ -135,7 +138,11 @@ export default function ChatThread({
             disabled={pending}
             pending={pending}
             onSubmit={submit}
-            placeholder="Type your answer, or ask Kapi a question…"
+            placeholder={
+              phase === "await-gate"
+                ? "Ask Kapi a question…"
+                : "Type your answer, or ask Kapi a question…"
+            }
           />
         </div>
       )}

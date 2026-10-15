@@ -6,6 +6,7 @@ import { useV2ChatSession } from "@/hooks/useV2ChatSession";
 import { readLastSession, writeLastSession } from "@/lib/learning/v2/localSession";
 import { readPersonalCards } from "@/lib/learning/v2/personalCards";
 import { MAX_CHAT_TURNS } from "@/lib/learning/v2/chatFlow";
+import { GATE_ASK_PROMPT } from "@/lib/learning/v2/gate";
 import { readLevels } from "@/lib/learning/v2/levelStore";
 
 const MISCONCEPTION_ID = "of-train-accuracy-proves";
@@ -60,12 +61,23 @@ function setup() {
   );
 }
 
-/** Mount and submit an explanation so the session reaches the check phase. */
+/**
+ * Mount and submit an explanation, then pass the checkpoint, so the session
+ * reaches the check phase with the first question asked.
+ */
 async function reachCheckPhase() {
+  const hook = await reachGate();
+  act(() => hook.result.current.gate("ready"));
+  await waitFor(() => expect(hook.result.current.phase).toBe("await-check-answer"));
+  return hook;
+}
+
+/** Mount and submit an explanation, stopping at the checkpoint after the fix. */
+async function reachGate() {
   diagnoseReply();
   const hook = setup();
   act(() => hook.result.current.submit(LONG_TEXT));
-  await waitFor(() => expect(hook.result.current.phase).toBe("await-check-answer"));
+  await waitFor(() => expect(hook.result.current.phase).toBe("await-gate"));
   return hook;
 }
 
@@ -154,7 +166,7 @@ describe("useV2ChatSession explanation phase", () => {
   });
 
   it("posts the diagnose request and walks through the returned messages", async () => {
-    const { result } = await reachCheckPhase();
+    const { result } = await reachGate();
 
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/v2/chat",
@@ -166,15 +178,17 @@ describe("useV2ChatSession explanation phase", () => {
       explanation: LONG_TEXT,
       sessionId: expect.stringMatching(/^[0-9a-f-]{36}$/),
     });
-    // One Kapi message with paragraphs, not a separate bubble per piece.
+    // The fix arrives on its own and the chat stops to check it landed; the
+    // example and the question stay back until the learner says to go on.
     expect(result.current.messages.map((m) => m.text).slice(1)).toEqual([
       LONG_TEXT,
-      [
-        "You're leaning on the training score. But that only shows memorisation.",
-        "A model can score 99% on train. Always check held-out data.",
-        "Train 99%, test 70%: is it good?",
-      ].join("\n\n"),
+      "You're leaning on the training score. But that only shows memorisation.",
+      expect.stringMatching(/\?$/),
     ]);
+    expect(result.current.phase).toBe("await-gate");
+    expect(result.current.messages.map((m) => m.text)).not.toContain(
+      "Train 99%, test 70%: is it good?",
+    );
     expect(result.current.pending).toBe(false);
     expect(result.current.quickReplies).toBeNull();
   });
@@ -227,9 +241,7 @@ describe("useV2ChatSession explanation phase", () => {
 
     diagnoseReply();
     act(() => result.current.submit(LONG_TEXT));
-    await waitFor(() =>
-      expect(result.current.phase).toBe("await-check-answer"),
-    );
+    await waitFor(() => expect(result.current.phase).toBe("await-gate"));
     expect(result.current.error).toBeNull();
   });
 });
@@ -273,11 +285,16 @@ describe("useV2ChatSession check phase", () => {
       answer: "No, test score matters.",
       turn: 1,
     });
-    // The thread before this answer: opener, explanation, and Kapi's one diagnosis message.
-    expect(body.history).toHaveLength(3);
-    expect(body.history.at(-1)).toMatchObject({ role: "kapi" });
-    expect(body.history.at(-1).text).toMatch(/Train 99%, test 70%: is it good\?$/);
+    // The thread before this answer: opener, the learner's explanation, Kapi's
+    // fix, the checkpoint, the learner passing it, then the example and the
+    // question. The question Kapi is waiting on comes last.
+    expect(body.history).toHaveLength(7);
+    expect(body.history.at(-1)).toEqual({
+      role: "kapi",
+      text: "Train 99%, test 70%: is it good?",
+    });
     expect(body.history[1]).toEqual({ role: "learner", text: LONG_TEXT });
+    expect(body.history[4]).toEqual({ role: "learner", text: "Makes sense" });
   });
 
   it("sends the same session id with the diagnosis and every check, for the opt-in log", async () => {
@@ -438,6 +455,121 @@ describe("useV2ChatSession check phase", () => {
   });
 });
 
+describe("useV2ChatSession checkpoint after the fix", () => {
+  it("holds the example and the question back until the learner is ready", async () => {
+    const hook = await reachGate();
+
+    const texts = hook.result.current.messages.map((m) => m.text);
+    expect(texts).not.toContain("A model can score 99% on train. Always check held-out data.");
+    expect(texts).not.toContain("Train 99%, test 70%: is it good?");
+
+    act(() => hook.result.current.gate("ready"));
+    await waitFor(() => expect(hook.result.current.phase).toBe("await-check-answer"));
+
+    expect(hook.result.current.messages.slice(-3)).toEqual([
+      { role: "learner", text: "Makes sense" },
+      { role: "kapi", text: "A model can score 99% on train. Always check held-out data." },
+      { role: "kapi", text: "Train 99%, test 70%: is it good?" },
+    ]);
+  });
+
+  it("needs no model call to pass the checkpoint", async () => {
+    const hook = await reachGate();
+    const calls = fetchMock.mock.calls.length;
+
+    act(() => hook.result.current.gate("ready"));
+    await waitFor(() => expect(hook.result.current.phase).toBe("await-check-answer"));
+
+    expect(fetchMock.mock.calls.length).toBe(calls);
+  });
+
+  it("invites the question when the learner says they have one", async () => {
+    const hook = await reachGate();
+
+    act(() => hook.result.current.gate("ask"));
+
+    expect(hook.result.current.messages.slice(-2)).toEqual([
+      { role: "learner", text: "I have a question" },
+      { role: "kapi", text: GATE_ASK_PROMPT },
+    ]);
+    // Still at the checkpoint: the question has not been asked yet.
+    expect(hook.result.current.phase).toBe("await-gate");
+  });
+
+  it("answers a question asked at the checkpoint without revealing the question", async () => {
+    const hook = await reachGate();
+    reply({ intent: "question", reply: "A held-out set is data kept back from training." });
+
+    act(() => hook.result.current.submit("What is held-out data?"));
+    await waitFor(() => expect(hook.result.current.pending).toBe(false));
+
+    expect(hook.result.current.messages.at(-1)).toEqual({
+      role: "kapi",
+      text: "A held-out set is data kept back from training.",
+    });
+    expect(hook.result.current.phase).toBe("await-gate");
+    expect(hook.result.current.messages.map((m) => m.text)).not.toContain(
+      "Train 99%, test 70%: is it good?",
+    );
+
+    const body = lastBody("question");
+    expect(body).toMatchObject({
+      phase: "question",
+      misconceptionId: MISCONCEPTION_ID,
+      // Kapi has asked nothing yet, so there is nothing to hold back.
+      probeQuestion: null,
+      learnerQuestion: "What is held-out data?",
+    });
+  });
+
+  it("lets the learner ask several times and then go on", async () => {
+    const hook = await reachGate();
+
+    for (const q of ["First question?", "Second question?"]) {
+      reply({ intent: "question", reply: `Answer to ${q}` });
+      act(() => hook.result.current.submit(q));
+      await waitFor(() => expect(hook.result.current.pending).toBe(false));
+      expect(hook.result.current.phase).toBe("await-gate");
+    }
+
+    act(() => hook.result.current.gate("ready"));
+    await waitFor(() => expect(hook.result.current.phase).toBe("await-check-answer"));
+
+    // The first question is still turn one: asking cost the learner nothing.
+    checkReply("resolved", "Next?");
+    act(() => hook.result.current.submit("No, the gap matters."));
+    await waitFor(() => expect(hook.result.current.pending).toBe(false));
+    expect(lastCheckBody().turn).toBe(1);
+  });
+
+  it("keeps the learner at the checkpoint when the question call fails", async () => {
+    const hook = await reachGate();
+    reply({ error: "Busy." }, 502);
+
+    act(() => hook.result.current.submit("What is held-out data?"));
+    await waitFor(() => expect(hook.result.current.error).toBe("Busy."));
+
+    expect(hook.result.current.phase).toBe("await-gate");
+    expect(hook.result.current.canRetry).toBe(true);
+
+    reply({ intent: "question", reply: "Data kept back from training." });
+    act(() => hook.result.current.retry());
+    await waitFor(() => expect(hook.result.current.error).toBeNull());
+    // The retry re-sends the question rather than duplicating the learner line.
+    expect(hook.result.current.messages.filter((m) => m.text === "What is held-out data?"))
+      .toHaveLength(1);
+  });
+
+  it("ignores the checkpoint chips once it has been passed", async () => {
+    const hook = await reachCheckPhase();
+    const before = hook.result.current.messages.length;
+
+    act(() => hook.result.current.gate("ready"));
+
+    expect(hook.result.current.messages).toHaveLength(before);
+  });
+});
+
 describe("useV2ChatSession learner questions", () => {
   it("shows Kapi's answer without ending the turn", async () => {
     const hook = await reachCheckPhase();
@@ -537,9 +669,12 @@ describe("useV2ChatSession strong explanation", () => {
   it("compliments the learner, then asks a challenging question instead of ending", async () => {
     const { result } = await reachChallenge();
 
-    expect(result.current.messages.at(-1)?.text).toBe(
-      `${strongReply.reasoning}\n\n${strongReply.probeQuestion}`,
-    );
+    // Nothing was taught, so there is nothing to check: no checkpoint here.
+    expect(result.current.messages.slice(-2)).toEqual([
+      { role: "kapi", text: strongReply.reasoning },
+      { role: "kapi", text: strongReply.probeQuestion },
+    ]);
+    expect(result.current.phase).toBe("await-check-answer");
   });
 
   it("sends a null misconception for the challenge follow-up and saves the answered question as a flashcard", async () => {
@@ -862,7 +997,7 @@ describe("useV2ChatSession retry", () => {
 
     diagnoseReply();
     act(() => result.current.retry());
-    await waitFor(() => expect(result.current.phase).toBe("await-check-answer"));
+    await waitFor(() => expect(result.current.phase).toBe("await-gate"));
 
     expect(bodies()).toHaveLength(2);
     expect(bodies()[1]).toEqual(bodies()[0]);
@@ -927,44 +1062,45 @@ describe("useV2ChatSession retry", () => {
 
     diagnoseReply();
     act(() => result.current.submit("A different, longer explanation."));
-    await waitFor(() => expect(result.current.phase).toBe("await-check-answer"));
+    await waitFor(() => expect(result.current.phase).toBe("await-gate"));
 
     expect(result.current.canRetry).toBe(false);
   });
 });
 
-describe("useV2ChatSession one message per turn", () => {
-  it("answers with a single Kapi message: feedback then the next question", async () => {
+describe("useV2ChatSession one message per thing said", () => {
+  // A learner found the old single long message hard to follow, so each piece
+  // Kapi says is now its own bubble: feedback, teaching and the question.
+  it("sends the feedback and the next question as separate messages", async () => {
     const { result } = await reachCheckPhase();
     const before = result.current.messages.length;
     checkReply("resolved", "Now, what if the test set is tiny?");
 
     act(() => result.current.submit("Test score matters."));
-    await waitFor(() => expect(result.current.messages).toHaveLength(before + 2));
+    await waitFor(() => expect(result.current.messages).toHaveLength(before + 3));
 
     expect(result.current.messages.slice(before)).toEqual([
       { role: "learner", text: "Test score matters." },
-      {
-        role: "kapi",
-        text: "Feedback for resolved.\n\nNow, what if the test set is tiny?",
-      },
+      { role: "kapi", text: "Feedback for resolved." },
+      { role: "kapi", text: "Now, what if the test set is tiny?" },
     ]);
   });
 
-  it("puts the feedback and hint of a first miss in one message", async () => {
+  it("sends the feedback and hint of a first miss as separate messages", async () => {
     const { result } = await reachCheckPhase();
     const before = result.current.messages.length;
     checkReply("unresolved", null, "Think about unseen data.");
 
     act(() => result.current.submit("It's good."));
-    await waitFor(() => expect(result.current.messages).toHaveLength(before + 2));
+    await waitFor(() => expect(result.current.messages).toHaveLength(before + 3));
 
-    expect(result.current.messages.at(-1)?.text).toBe(
-      "Feedback for unresolved.\n\nThink about unseen data.",
-    );
+    expect(result.current.messages.slice(before + 1)).toEqual([
+      { role: "kapi", text: "Feedback for unresolved." },
+      { role: "kapi", text: "Think about unseen data." },
+    ]);
   });
 
-  it("puts the closing line in the same message as the final feedback and recaps it", async () => {
+  it("keeps the closing line with the final feedback and recaps it", async () => {
     const { result } = await reachCheckPhase();
     const before = result.current.messages.length;
     checkReply("partial", null);
@@ -979,17 +1115,18 @@ describe("useV2ChatSession one message per turn", () => {
     expect(lastBody("summary").history.at(-1)).toEqual({ role: "kapi", text: wrapUp });
   });
 
-  it("puts an assist reply and its simpler question in one message", async () => {
+  it("sends an assist reply and its simpler question as separate messages", async () => {
     const { result } = await reachCheckPhase();
     const before = result.current.messages.length;
     reply({ reply: "No problem, let's go smaller.", question: "What does 'test score' measure?" });
 
     act(() => void result.current.assist("lost"));
-    await waitFor(() => expect(result.current.messages).toHaveLength(before + 2));
+    await waitFor(() => expect(result.current.messages).toHaveLength(before + 3));
 
-    expect(result.current.messages.at(-1)?.text).toBe(
-      "No problem, let's go smaller.\n\nWhat does 'test score' measure?",
-    );
+    expect(result.current.messages.slice(before + 1)).toEqual([
+      { role: "kapi", text: "No problem, let's go smaller." },
+      { role: "kapi", text: "What does 'test score' measure?" },
+    ]);
   });
 });
 
@@ -1012,7 +1149,7 @@ describe("useV2ChatSession build, check, challenge flow", () => {
     expect(lastCheckBody().move).toBe("challenge");
   });
 
-  it("shows the teaching between the feedback and the next question in one message", async () => {
+  it("shows the teaching between the feedback and the next question", async () => {
     const { result } = await reachCheckPhase();
     const before = result.current.messages.length;
     checkReply("partial", "So what does the test score tell you?", null, {
@@ -1021,15 +1158,13 @@ describe("useV2ChatSession build, check, challenge flow", () => {
     });
 
     act(() => result.current.submit("Maybe train?"));
-    await waitFor(() => expect(result.current.messages).toHaveLength(before + 2));
+    await waitFor(() => expect(result.current.messages).toHaveLength(before + 4));
 
-    expect(result.current.messages.at(-1)?.text).toBe(
-      [
-        "Feedback for partial.",
-        "Think of the test score as an exam on questions the model never studied.",
-        "So what does the test score tell you?",
-      ].join("\n\n"),
-    );
+    expect(result.current.messages.slice(before + 1).map((m) => m.text)).toEqual([
+      "Feedback for partial.",
+      "Think of the test score as an exam on questions the model never studied.",
+      "So what does the test score tell you?",
+    ]);
   });
 
   it("sends what the last question was for and the verdicts so far with each answer", async () => {

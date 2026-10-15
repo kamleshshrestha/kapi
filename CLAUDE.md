@@ -14,7 +14,7 @@ The home page opens with the promise and a three-step intro; a footer on every p
 
 Teach-it-back (`/teach/[concept]`, linked from the end of a chat): the learner explains the concept to Kapi playing a curious beginner for `TEACH_TURNS` (3) messages via the `teach` phase of `/api/v2/chat`; the beginner only asks naive questions (prompt `chatTeachPrompt`) and the assessment (solid/partial/shaky, what was clear, gaps) is returned only on the last turn, enforced by the route. A solid one counts as clean Defend evidence. Chat events of this mode are not written to the opt-in log yet.
 
-Learner flow: pick a concept (`/`) → explain it in your own words in a chat with Kapi → the LLM finds the specific gap (or compliments a strong explanation and challenges it) → an adaptive conversation of up to 7 questions that builds the learner up (small teaching pieces, easy guiding questions) before checking and only then challenging, with hints before reveals and help chips (hint / "I'm lost" / explain differently) → a recap at the end. At any point the learner can type a question of their own instead of answering rather than being graded on it: the `check` call classifies the message (`learnerIntent`, where a hedged or wrong attempt still counts as an answer), and a question is answered by a separate `chatQuestionPrompt` call whose reply goes through `guardQuestionReply` (`lib/llm/leakGuard.ts`), because the question may itself be the answer to the one still pending. That reviewer is deliberately not `guardAgainstLeak`: the hint reviewer rewrites a leak into a one-sentence nudge, which would throw away the answer the learner asked for, so this one trims only the giveaway (a yes/no on the pending example, calling it good or bad, naming what it is an instance of) and keeps the explanation; if it fails or returns a near-empty rewrite, the tutor's reply is shown as written. Such a turn costs no turn, verdict, flashcard or depth-level evidence, and is counted as `learner_question` but not written to the opt-in log (`session_events.result` has no value for it). Resolved ideas and shaky ideas are saved as personal flashcards ("From you" deck, alongside the catalog-derived "Core" deck at `/decks/[concept]`). A too-thin first explanation falls back to the first diagnostic question's options as quick replies.
+Learner flow: pick a concept (`/`) → explain it in your own words in a chat with Kapi → the LLM finds the specific gap (or compliments a strong explanation and challenges it) → a checkpoint: the reaction and the fix arrive on their own, and Kapi asks whether that landed before the example and first question follow ("Makes sense" / "I have a question", `lib/learning/v2/gate.ts` + `GateChips`, phase `await-gate`; static copy, no LLM call; skipped for a strong explanation, which was taught nothing) → an adaptive conversation of up to 7 questions that builds the learner up (small teaching pieces, easy guiding questions) before checking and only then challenging, with hints before reveals and help chips (hint / "I'm lost" / explain differently) → a recap at the end. Every piece Kapi says is its own chat message (feedback, teaching, question), not paragraphs of one, which `TUTOR_VOICE` tells the model. At any point the learner can type a question of their own instead of answering rather than being graded on it: the `check` call classifies the message (`learnerIntent`, where a hedged or wrong attempt still counts as an answer), and a question is answered by a separate `chatQuestionPrompt` call (route helper `answerLearnerQuestion`, shared with the explicit `question` phase that the checkpoint uses, where `probeQuestion` is null because Kapi has asked nothing yet and so the reviewer is skipped) whose reply goes through `guardQuestionReply` (`lib/llm/leakGuard.ts`), because the question may itself be the answer to the one still pending. That reviewer is deliberately not `guardAgainstLeak`: the hint reviewer rewrites a leak into a one-sentence nudge, which would throw away the answer the learner asked for, so this one trims only the giveaway (a yes/no on the pending example, calling it good or bad, naming what it is an instance of) and keeps the explanation; if it fails or returns a near-empty rewrite, the tutor's reply is shown as written. Such a turn costs no turn, verdict, flashcard or depth-level evidence, and is counted as `learner_question` but not written to the opt-in log (`session_events.result` has no value for it). Resolved ideas and shaky ideas are saved as personal flashcards ("From you" deck, alongside the catalog-derived "Core" deck at `/decks/[concept]`). A too-thin first explanation falls back to the first diagnostic question's options as quick replies.
 
 ## Commands
 
@@ -43,15 +43,15 @@ app/
 ├── decks/[concept]/         flashcard review (Core + "From you" decks)
 ├── feedback/, privacy/, impressum/
 └── api/v2/
-    ├── chat/route.ts        chat phases: diagnose, check, assist, summary, teach (leak-checked hints);
+    ├── chat/route.ts        chat phases: diagnose, check, assist, question, summary, teach (leak-checked hints);
     │                        a check turn the model marks as a learner question is answered by a
     │                        second, leak-checked call instead of being graded
     ├── feedback/route.ts    learner feedback (scrubbed, server-written)
     └── account/             DELETE (erasure) and export/ (JSON download)
 components/v2/               ConceptSelectorV2, ChatThread, ChatBubble, ChatInputBar, QuickReplyChips,
-                             AssistChips, SessionSummary, FlashcardDeck, Flashcard
+                             AssistChips, GateChips, SessionSummary, FlashcardDeck, Flashcard
 hooks/
-├── useV2ChatSession.ts      chat state machine, help/hint/retry/recap, calls /api/v2/chat
+├── useV2ChatSession.ts      chat state machine, checkpoint/help/hint/retry/recap, calls /api/v2/chat
 └── useFlashcardDeck.ts      deck walk-through, self-rating, "review missed"
 lib/
 ├── analytics/               counter.ts (countEvent, anonymous daily counters)
@@ -60,7 +60,7 @@ lib/
 │                            scrub.ts (strips internal misconception ids from learner-facing model text)
 └── learning/                domain logic, no React/LLM dependencies:
                              concepts.ts, misconceptions.ts, diagnostic.ts (question bank: content rules
-                             below + quick-reply fallback), types.ts, v2/ (chatFlow limits, openers,
+                             below + quick-reply fallback), types.ts, v2/ (chatFlow limits, openers, gate,
                              flashcards, personalCards, flashcardMastery, localSession)
 tests/                       mirrors lib/, app/, hooks/ and components/ (Vitest; `lib/llm/prompts.ts` is only partly covered through the route tests)
 ```
