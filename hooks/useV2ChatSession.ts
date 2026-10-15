@@ -35,6 +35,8 @@ type DiagnoseResponse = {
   explanation: string | null;
   example: string | null;
   takeaway: string | null;
+  /** A standard formula to show beside the explanation, when one helps. */
+  formula: string | null;
   probeQuestion: string | null;
 };
 
@@ -142,8 +144,8 @@ export function useV2ChatSession(
     setMessages([{ role: "kapi", text: opener }]);
   }, [conceptId, conceptTitle]);
 
-  function append(role: ChatMessage["role"], text: string) {
-    setMessages((m) => [...m, { role, text }]);
+  function append(role: ChatMessage["role"], text: string, kind?: ChatMessage["kind"]) {
+    setMessages((m) => [...m, { role, text, ...(kind ? { kind } : {}) }]);
   }
 
   async function submitExplanation(text: string, retrying = false) {
@@ -170,6 +172,8 @@ export function useV2ChatSession(
       // the opening arrived as one long text, so the example and the question
       // wait behind a checkpoint instead of landing in the same breath.
       append("kapi", [result.reasoning, result.explanation].filter(Boolean).join(" "));
+      // Right after the words that introduced it, before the checkpoint.
+      if (result.formula) append("kapi", result.formula, "formula");
 
       // No gap found: a strong first explanation is evidence for "explain".
       if (result.misconceptionId === null) recordEvidence(conceptId, "explain", "clean");

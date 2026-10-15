@@ -119,6 +119,12 @@ export function chatDiagnoseOutputSchema(misconceptionIds: string[]) {
     primaryMisconceptionId: misconceptionId.nullable(),
     reasoning: z.string(),
     explanation: z.string().nullable(),
+    /**
+     * One standard formula, as plain text, when it would anchor the idea for
+     * this learner; null otherwise. Validated by `cleanFormula` before it is
+     * sent on, since the app has no LaTeX renderer.
+     */
+    formula: z.string().nullable(),
     example: z.string().nullable(),
     takeaway: z.string().nullable(),
     probeQuestion: z.string().nullable(),

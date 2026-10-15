@@ -40,7 +40,7 @@ export default function ChatThread({
     <div className="flex flex-1 flex-col gap-6">
       <div className="flex flex-1 flex-col gap-4">
         {messages.map((message, i) => (
-          <ChatBubble key={i} role={message.role} text={message.text} />
+          <ChatBubble key={i} role={message.role} text={message.text} kind={message.kind} />
         ))}
         {pending && (
           <p className="text-sm text-foreground/60" aria-live="polite">

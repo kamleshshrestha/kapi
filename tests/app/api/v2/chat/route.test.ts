@@ -115,10 +115,46 @@ describe("POST /api/v2/chat diagnose phase", () => {
       misconceptionId: null,
       reasoning: "Your explanation is accurate.",
       explanation: null,
+      formula: null,
       example: null,
       takeaway: null,
       probeQuestion: null,
     });
+  });
+
+  it("passes a plain-text formula through to the learner", async () => {
+    mockedGenerate.mockResolvedValue({
+      primaryMisconceptionId: MISCONCEPTION,
+      reasoning: "You're leaning on the training score.",
+      explanation: "Compare it with the score on held-out rows.",
+      formula: "gap = train_score - test_score",
+      example: "99% and 70% is a 29-point gap.",
+      takeaway: "Always check held-out data.",
+      probeQuestion: "Is that model good?",
+    });
+
+    const json = await (await post(diagnoseBody)).json();
+
+    expect(json.formula).toBe("gap = train_score - test_score");
+  });
+
+  it("drops a formula the app cannot render, rather than showing its source", async () => {
+    // There is no LaTeX renderer, so this would reach the learner verbatim.
+    mockedGenerate.mockResolvedValue({
+      primaryMisconceptionId: MISCONCEPTION,
+      reasoning: "You're leaning on the training score.",
+      explanation: "Compare it with the score on held-out rows.",
+      formula: "\\text{gap} = s_{train} - s_{test}",
+      example: "99% and 70% is a 29-point gap.",
+      takeaway: "Always check held-out data.",
+      probeQuestion: "Is that model good?",
+    });
+
+    const json = await (await post(diagnoseBody)).json();
+
+    expect(json.formula).toBeNull();
+    // Dropping the formula must not cost the learner the explanation.
+    expect(json.explanation).toBe("Compare it with the score on held-out rows.");
   });
 
   it("sends the learner's explanation to the model inside the prompt", async () => {

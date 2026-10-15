@@ -29,6 +29,7 @@ function diagnoseReply(overrides: Record<string, unknown> = {}) {
     example: "A model can score 99% on train.",
     takeaway: "Always check held-out data.",
     probeQuestion: "Train 99%, test 70%: is it good?",
+    formula: null,
     ...overrides,
   });
 }
@@ -452,6 +453,34 @@ describe("useV2ChatSession check phase", () => {
 
     expect(fetchMock.mock.calls.length).toBe(calls);
     expect(result.current.messages).toHaveLength(count);
+  });
+});
+
+describe("useV2ChatSession formulas", () => {
+  it("shows a formula as its own message, right after the words for it", async () => {
+    diagnoseReply({ formula: "gap = train_score - test_score" });
+    const hook = setup();
+
+    act(() => hook.result.current.submit(LONG_TEXT));
+    await waitFor(() => expect(hook.result.current.phase).toBe("await-gate"));
+
+    expect(hook.result.current.messages.slice(-3)).toEqual([
+      {
+        role: "kapi",
+        text: "You're leaning on the training score. But that only shows memorisation.",
+      },
+      { role: "kapi", text: "gap = train_score - test_score", kind: "formula" },
+      // The checkpoint still comes last, after the formula.
+      { role: "kapi", text: expect.stringMatching(/\?$/) },
+    ]);
+  });
+
+  it("shows no formula message when there is none, which is the usual case", async () => {
+    const hook = await reachGate();
+
+    expect(hook.result.current.messages.some((m) => m.kind === "formula")).toBe(false);
+    // Ordinary messages carry no kind at all, rather than an empty one.
+    for (const m of hook.result.current.messages) expect(m).not.toHaveProperty("kind");
   });
 });
 

@@ -58,6 +58,21 @@ describe("ChatThread", () => {
     expect(screen.getByText("My explanation")).toBeInTheDocument();
   });
 
+  it("sets a formula apart from the talking, as monospace rather than a bubble", () => {
+    renderThread({
+      messages: [
+        { role: "kapi", text: "Compare the two scores." },
+        { role: "kapi", text: "gap = train_score - test_score", kind: "formula" },
+      ],
+    });
+
+    const formula = screen.getByText("gap = train_score - test_score");
+    expect(formula.tagName).toBe("CODE");
+    expect(formula).toHaveClass("font-mono");
+    // It is Kapi's, but not attributed again: it belongs to the message above.
+    expect(screen.getAllByText("Kapi")).toHaveLength(1);
+  });
+
   it("shows the typing indicator only while pending", () => {
     renderThread({ pending: true });
     expect(screen.getAllByText("Kapi is typing…").length).toBeGreaterThan(0);

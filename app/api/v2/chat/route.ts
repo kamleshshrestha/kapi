@@ -6,6 +6,7 @@ import {
 import type { Concept, Misconception } from "@/lib/learning/types";
 import type { ChatMove } from "@/lib/llm/schemas";
 import { CHAT_HISTORY_LIMIT, MAX_CHAT_TURNS, TEACH_TURNS } from "@/lib/learning/v2/chatFlow";
+import { cleanFormula } from "@/lib/learning/v2/formula";
 import { generateStructured, llmErrorResponse, parseBody } from "@/lib/llm/client";
 import { checkRateLimit } from "@/lib/llm/rate-limit";
 import {
@@ -127,6 +128,9 @@ export async function POST(request: Request) {
         misconceptionId: result.primaryMisconceptionId,
         reasoning: scrubMisconceptionIds(result.reasoning, misconceptions),
         explanation: scrubNullable(result.explanation, misconceptions),
+        // Dropped rather than shown if it is LaTeX or prose: the app renders
+        // it as plain text, so a beginner would otherwise see the source.
+        formula: cleanFormula(scrubNullable(result.formula ?? null, misconceptions)),
         example: scrubNullable(result.example, misconceptions),
         takeaway: scrubNullable(result.takeaway, misconceptions),
         probeQuestion: scrubNullable(result.probeQuestion, misconceptions),
