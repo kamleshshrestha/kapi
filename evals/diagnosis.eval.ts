@@ -5,8 +5,14 @@ import { getMisconception, getMisconceptionsForConcept } from "@/lib/learning/mi
 import { MAX_CHAT_TURNS } from "@/lib/learning/v2/chatFlow";
 import { MODEL, generateStructured } from "@/lib/llm/client";
 import { guardAgainstLeak } from "@/lib/llm/leakGuard";
-import { chatCheckPrompt, chatDiagnosePrompt, leakCheckPrompt } from "@/lib/llm/prompts";
 import {
+  accuracyCheckPrompt,
+  chatCheckPrompt,
+  chatDiagnosePrompt,
+  leakCheckPrompt,
+} from "@/lib/llm/prompts";
+import {
+  accuracyCheckOutputSchema,
   chatCheckOutputSchema,
   chatDiagnoseOutputSchema,
   leakCheckOutputSchema,
@@ -17,6 +23,33 @@ import { evalCases, type EvalCase } from "./cases";
  * Runs the real prompts against the real model for every case in cases.ts:
  * - diagnosis: does it name an acceptable misconception (or none, for a strong
  *   explanation)? Graded by exact id.
+ * - accuracy: is what the diagnosis actually tells the learner true? The
+ *   explanation, example and takeaway are free text the model writes, and a
+ *   beginner cannot tell a confident wrong definition from a right one (a user
+ *   reported exactly that). Judged by the DIFFERENT model against the
+ *   hand-written catalog correction, which is ground truth.
+ *
+ *   Read this number as a floor, not a guarantee, and read the texts before
+ *   believing a flag. Measured over two runs on 2026-10-15, 18 judged
+ *   diagnoses each, every flag checked by hand: roughly half were real.
+ *   - Real: a logistic-regression example saying "the boundary is the straight
+ *     line between them" about two points not on the boundary (every number in
+ *     it right, the referential claim wrong); a train/test example asserting an
+ *     overall mean of 60 from halves of 50 and 80, which only holds at a 2:1
+ *     split it never states.
+ *   - Invented: a claim that the backprop example's arithmetic was wrong where
+ *     dL/dw1 = 6*w2*x = 18 was correct, and a complaint quoting words the tutor
+ *     never wrote. The backprop one recurred in both runs, so it is systematic,
+ *     not random.
+ *   Requiring the judge to quote the text, state what is true instead and show
+ *   its arithmetic (quote/truth/working) cut false positives but did not remove
+ *   them, and on the saved texts in isolation it also stopped catching the real
+ *   ones. So: it catches blatant errors, misses subtle ones, and invents some.
+ *   A clean run is not evidence the content is right; reading the texts in
+ *   last-run.json is still the only reliable check. For the same reason there
+ *   is deliberately no accuracy guard in production - a reviewer at roughly 50%
+ *   precision would rewrite about as many correct explanations as wrong ones,
+ *   which is how the hint reviewer went wrong before (see guardQuestionReply).
  * - first miss: for a case with a gap, the learner answers the probe by
  *   restating the misconception. The model should give a hint, and neither the
  *   feedback nor the hint may give the answer away. That is judged by a
@@ -26,7 +59,8 @@ import { evalCases, type EvalCase } from "./cases";
  *   production code). Only the guarded number is held to a threshold.
  *
  * Thresholds (env): EVAL_MIN_ACCURACY (default 0.9), EVAL_MAX_LEAKS (2, on the
- * guarded text), EVAL_MAX_SKIPPED_HINTS (1), EVAL_MAX_ERRORS (1). They are a
+ * guarded text), EVAL_MAX_INACCURATE (1), EVAL_MAX_SKIPPED_HINTS (1),
+ * EVAL_MAX_ERRORS (1). They are a
  * tripwire, not a precise measure: with about 17 judged hints and an LLM judge,
  * the flagged count moves by a few between identical runs (3, 6 and 2 raw
  * leaks in three runs on the same cases), so look at the texts in last-run.json
@@ -35,6 +69,12 @@ import { evalCases, type EvalCase } from "./cases";
 const JUDGE = process.env.EVAL_JUDGE_MODEL ?? "openai/gpt-oss-120b";
 const MIN_ACCURACY = Number(process.env.EVAL_MIN_ACCURACY ?? "0.9");
 const MAX_LEAKS = Number(process.env.EVAL_MAX_LEAKS ?? "2");
+/**
+ * Diagnoses whose explanation, example or takeaway the judge calls untrue. Set
+ * to catch a systematic regression (several flags at once), not a single flag:
+ * the judge invented 2 of its 3 complaints in the run this was measured on.
+ */
+const MAX_INACCURATE = Number(process.env.EVAL_MAX_INACCURATE ?? "2");
 const MAX_ERRORS = Number(process.env.EVAL_MAX_ERRORS ?? "1");
 const MAX_SKIPPED_HINTS = Number(process.env.EVAL_MAX_SKIPPED_HINTS ?? "1");
 const CONCURRENCY = 4;
@@ -49,6 +89,10 @@ type Result = {
   verdict?: string;
   hinted?: boolean;
   skippedHint?: boolean;
+  /** The judge says something the diagnosis told the learner is untrue. */
+  inaccurate?: boolean;
+  /** What the judge says is untrue, kept so a flagged case can be read. */
+  accuracyProblem?: string | null;
   /** The judge says the model's own feedback/hint gives the answer away. */
   rawLeak?: boolean;
   /** The same, after the app's reviewer pass. */
@@ -56,6 +100,9 @@ type Result = {
   /** What was said, kept in last-run.json so a flagged leak can be read. */
   text?: {
     question: string;
+    explanation?: string | null;
+    example?: string | null;
+    takeaway?: string | null;
     feedback: string;
     hint: string | null;
     guardedFeedback?: string | null;
@@ -103,7 +150,41 @@ async function runCase(c: EvalCase): Promise<Result> {
 
     const misconception = result.got ? (getMisconception(result.got) ?? null) : null;
     const probe = diagnosis.probeQuestion;
-    if (c.acceptable.length === 0 || !probe) return result;
+
+    // Is what the learner was actually told true? Only worth asking when the
+    // diagnosis taught them something; a strong explanation gets a compliment
+    // and a question, with no claims of its own to check.
+    if (diagnosis.explanation || diagnosis.example || diagnosis.takeaway) {
+      const review = await stage("accuracy", () =>
+        generateStructured({
+          ...accuracyCheckPrompt({
+            concept,
+            misconception,
+            explanation: diagnosis.explanation,
+            example: diagnosis.example,
+            takeaway: diagnosis.takeaway,
+          }),
+          schema: accuracyCheckOutputSchema,
+          model: JUDGE,
+        }),
+      );
+      result.inaccurate = !review.accurate;
+      result.accuracyProblem = review.problem;
+    }
+
+    if (c.acceptable.length === 0 || !probe) {
+      if (diagnosis.explanation || diagnosis.example || diagnosis.takeaway) {
+        result.text = {
+          question: probe ?? "(none)",
+          explanation: diagnosis.explanation,
+          example: diagnosis.example,
+          takeaway: diagnosis.takeaway,
+          feedback: "(no check step)",
+          hint: null,
+        };
+      }
+      return result;
+    }
 
     const check = await stage("check", () =>
       generateStructured({
@@ -124,7 +205,14 @@ async function runCase(c: EvalCase): Promise<Result> {
     );
     result.verdict = check.verdict;
     result.hinted = Boolean(check.hint);
-    result.text = { question: probe, feedback: check.feedback, hint: check.hint };
+    result.text = {
+      question: probe,
+      explanation: diagnosis.explanation,
+      example: diagnosis.example,
+      takeaway: diagnosis.takeaway,
+      feedback: check.feedback,
+      hint: check.hint,
+    };
     if (check.verdict !== "resolved" && !check.hint) result.skippedHint = true;
     if (check.hint) {
       const judge = async (feedback: string | null, hint: string) =>
@@ -180,7 +268,7 @@ async function runAll(): Promise<Result[]> {
   return results;
 }
 
-it("diagnoses explanations accurately and never leaks the answer in a first-miss hint", async () => {
+it("diagnoses explanations accurately, tells the learner nothing untrue, and never leaks a first-miss hint", async () => {
   expect(process.env.OPENROUTER_API_KEY, "OPENROUTER_API_KEY must be set").toBeTruthy();
   if (JUDGE === MODEL) console.warn("[eval] the judge is the same model as the app; leak numbers are weak evidence");
 
@@ -193,6 +281,7 @@ it("diagnoses explanations accurately and never leaks the answer in a first-miss
       `#${String(r.id).padStart(2)} ${r.conceptId.padEnd(19)} ${r.kind.padEnd(6)} ` +
       `${r.diagnosisOk ? "ok  " : "MISS"} got=${r.got ?? "null"} want=${r.expected.join("|") || "null"}` +
       (r.verdict ? ` verdict=${r.verdict} hint=${r.hinted ? "y" : "n"}` : "") +
+      (r.inaccurate !== undefined ? ` accurate=${r.inaccurate ? "NO" : "yes"}` : "") +
       (r.rawLeak !== undefined ? ` raw-leak=${r.rawLeak ? "YES" : "no"} guarded-leak=${r.guardedLeak ? "YES" : "no"}` : "") +
       (r.skippedHint ? " NO-HINT" : "") +
       (r.error ? ` ERROR ${r.error}` : ""),
@@ -202,6 +291,8 @@ it("diagnoses explanations accurately and never leaks the answer in a first-miss
     const of = results.filter((r) => r.kind === k);
     return `${k} ${of.filter((r) => r.diagnosisOk).length}/${of.length}`;
   });
+  const inaccurate = results.filter((r) => r.inaccurate).length;
+  const accuracyJudged = results.filter((r) => r.inaccurate !== undefined).length;
   const rawLeaks = results.filter((r) => r.rawLeak).length;
   const leaks = results.filter((r) => r.guardedLeak).length;
   const judged = results.filter((r) => r.rawLeak !== undefined).length;
@@ -213,6 +304,8 @@ it("diagnoses explanations accurately and never leaks the answer in a first-miss
     judge: JUDGE,
     diagnosis: `${correct}/${results.length}`,
     byKind,
+    inaccurate: `${inaccurate}/${accuracyJudged}`,
+    inaccuracies: results.filter((r) => r.inaccurate).map((r) => `#${r.id} ${r.accuracyProblem}`),
     rawLeaks: `${rawLeaks}/${judged}`,
     guardedLeaks: `${leaks}/${judged}`,
     skippedHints: skipped,
@@ -225,5 +318,8 @@ it("diagnoses explanations accurately and never leaks the answer in a first-miss
   expect(errors, "cases that errored").toBeLessThanOrEqual(MAX_ERRORS);
   expect(correct / results.length, "diagnosis accuracy").toBeGreaterThanOrEqual(MIN_ACCURACY);
   expect(leaks, "first-miss hints that still leak the answer after the guard").toBeLessThanOrEqual(MAX_LEAKS);
+  expect(inaccurate, "diagnoses that told the learner something untrue").toBeLessThanOrEqual(
+    MAX_INACCURATE,
+  );
   expect(skipped, "first misses that got no hint").toBeLessThanOrEqual(MAX_SKIPPED_HINTS);
 });

@@ -233,6 +233,28 @@ export const questionLeakCheckOutputSchema = z.object({
   reply: z.string(),
 });
 
+/**
+ * Verdict from the reviewer that checks whether what Kapi told the learner is
+ * factually true. On an error it returns corrected texts, so the same call can
+ * measure accuracy in `pnpm eval` and fix it in production.
+ */
+export const accuracyCheckOutputSchema = z.object({
+  accurate: z.boolean(),
+  /** One sentence naming what is untrue; null when nothing is. */
+  problem: z.string().nullable(),
+  /**
+   * The exact words objected to, what is true instead, and any arithmetic the
+   * reviewer did. Demanded so it has to ground a complaint in the text rather
+   * than assert one: unquotable objections were most of its false positives.
+   */
+  quote: z.string().nullable(),
+  truth: z.string().nullable(),
+  working: z.string().nullable(),
+  explanation: z.string().nullable(),
+  example: z.string().nullable(),
+  takeaway: z.string().nullable(),
+});
+
 export const feedbackFoundGap = ["yes", "partly", "no"] as const;
 
 /** Learner feedback: an answer, a comment, or both (never neither). */

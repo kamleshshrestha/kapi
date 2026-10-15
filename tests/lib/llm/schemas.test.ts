@@ -4,7 +4,11 @@ import { getConcept } from "@/lib/learning/concepts";
 import { getMisconception } from "@/lib/learning/misconceptions";
 import { generateStructured } from "@/lib/llm/client";
 import { chatCheckPrompt } from "@/lib/llm/prompts";
-import { chatCheckOutputSchema, chatQuestionOutputSchema } from "@/lib/llm/schemas";
+import {
+  accuracyCheckOutputSchema,
+  chatCheckOutputSchema,
+  chatQuestionOutputSchema,
+} from "@/lib/llm/schemas";
 
 const good =
   "You correctly said the weights stay the same until the optimizer step, which shows you separate gradients from updates.";
@@ -67,6 +71,48 @@ describe("chatCheckOutputSchema learnerIntent", () => {
     // strict JSON-schema mode needs every field listed; a missing one would
     // silently become "answer" and grade a question as a wrong attempt.
     expect(z.toJSONSchema(chatCheckOutputSchema).required).toContain("learnerIntent");
+  });
+});
+
+describe("accuracyCheckOutputSchema", () => {
+  const clean = {
+    accurate: true,
+    problem: null,
+    quote: null,
+    truth: null,
+    working: null,
+    explanation: "Real data is noisy, so no straight line hits every point.",
+    example: null,
+    takeaway: null,
+  };
+
+  it("accepts a clean review and one that flags with its working shown", () => {
+    expect(accuracyCheckOutputSchema.safeParse(clean).success).toBe(true);
+    expect(
+      accuracyCheckOutputSchema.safeParse({
+        ...clean,
+        accurate: false,
+        problem: "The boundary is not the line between those two points.",
+        quote: "The boundary is the straight line between them.",
+        truth: "The boundary is where the score is zero.",
+        working: "2*3-1-1 = 4, so (3,1) is not on the boundary.",
+      }).success,
+    ).toBe(true);
+  });
+
+  it("requires the grounding fields, so a complaint cannot be a bare assertion", () => {
+    // Dropping them is what let the judge invent problems it could not quote.
+    for (const field of ["quote", "truth", "working"]) {
+      const partial: Record<string, unknown> = { ...clean };
+      delete partial[field];
+      expect(accuracyCheckOutputSchema.safeParse(partial).success).toBe(false);
+    }
+  });
+
+  it("asks the model for every field, so none is silently defaulted", () => {
+    expect(z.toJSONSchema(accuracyCheckOutputSchema).required).toEqual(
+      expect.arrayContaining(["accurate", "problem", "quote", "truth", "working"]),
+    );
   });
 });
 
