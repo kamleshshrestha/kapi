@@ -3,6 +3,8 @@ export type ChatRole = "kapi" | "learner";
 export type ChatMessage = {
   role: ChatRole;
   text: string;
+  /** "formula" is shown as a monospace block rather than a speech bubble. */
+  kind?: "formula";
 };
 
 export type ChatSessionPhase =
