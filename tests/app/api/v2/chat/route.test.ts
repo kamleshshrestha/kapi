@@ -156,6 +156,10 @@ describe("POST /api/v2/chat diagnose phase", () => {
     const { user, system } = mockedGenerate.mock.calls[0][0];
     expect(user).toContain(getMisconception(MISCONCEPTION)!.example);
     expect(system).toContain("reproduce it exactly as written");
+    // The checkpoint sits between the explanation and the example, so the
+    // explanation must not promise one the learner has not been shown yet.
+    expect(system).toContain("must not announce it");
+    expect(system).toMatch(/never announce, promise or lead into the example/);
   });
 
   it("passes a plain-text formula through to the learner", async () => {
