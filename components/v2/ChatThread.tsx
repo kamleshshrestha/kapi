@@ -131,7 +131,12 @@ export default function ChatThread({
           {phase === "await-check-answer" && (
             <AssistChips actions={ASSIST_ACTIONS} disabled={pending} onPick={assist} />
           )}
-          <ChatInputBar disabled={pending} pending={pending} onSubmit={submit} />
+          <ChatInputBar
+            disabled={pending}
+            pending={pending}
+            onSubmit={submit}
+            placeholder="Type your answer, or ask Kapi a question…"
+          />
         </div>
       )}
     </div>

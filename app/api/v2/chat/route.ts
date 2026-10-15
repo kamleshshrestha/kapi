@@ -12,6 +12,7 @@ import {
   chatAssistPrompt,
   chatCheckPrompt,
   chatDiagnosePrompt,
+  chatQuestionPrompt,
   chatSummaryPrompt,
   chatTeachPrompt,
 } from "@/lib/llm/prompts";
@@ -19,12 +20,13 @@ import {
   chatAssistOutputSchema,
   chatCheckOutputSchema,
   chatDiagnoseOutputSchema,
+  chatQuestionOutputSchema,
   chatSummaryOutputSchema,
   chatTeachOutputSchema,
   chatTurnRequestSchema,
 } from "@/lib/llm/schemas";
 import { scrubMisconceptionIds } from "@/lib/llm/scrub";
-import { guardAgainstLeak } from "@/lib/llm/leakGuard";
+import { guardAgainstLeak, guardQuestionReply } from "@/lib/llm/leakGuard";
 import { countEvent } from "@/lib/analytics/counter";
 import { logChatEvent } from "@/lib/privacy/eventLog";
 
@@ -207,6 +209,39 @@ export async function POST(request: Request) {
       schema: chatCheckOutputSchema,
     });
 
+    // The learner asked a question instead of answering. The grading fields
+    // are not trusted here: a second, focused call answers them and the
+    // question Kapi asked stays pending, so this costs no turn and no verdict.
+    if (result.learnerIntent === "question") {
+      const asked = await generateStructured({
+        ...chatQuestionPrompt({
+          concept,
+          misconception,
+          question: data.probeQuestion,
+          history,
+          learnerQuestion: data.answer,
+        }),
+        schema: chatQuestionOutputSchema,
+      });
+
+      // Their question can itself be the answer to the pending question, so
+      // the reply is reviewed too — by the reviewer that trims a giveaway and
+      // keeps the teaching, not the one that rewrites hints into nudges.
+      const reply = await guardQuestionReply({
+        concept,
+        misconception,
+        question: data.probeQuestion,
+        learnerQuestion: data.answer,
+        reply: scrubMisconceptionIds(asked.reply, conceptMisconceptions),
+        misconceptions: conceptMisconceptions,
+      });
+
+      countEvent("learner_question", { concept: concept.id });
+      // Not written to the opt-in log: `session_events.result` has no value
+      // for a question, and adding one needs a migration.
+      return Response.json({ intent: "question", reply });
+    }
+
     // A hint is only for a first miss; otherwise move on (or finish).
     let feedback = scrubMisconceptionIds(result.feedback, conceptMisconceptions);
     let hint =
@@ -259,6 +294,7 @@ export async function POST(request: Request) {
     });
 
     return Response.json({
+      intent: "answer",
       verdict: result.verdict,
       feedback,
       hint,

@@ -151,6 +151,7 @@ describe("POST /api/v2/chat check phase", () => {
 
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({
+      intent: "answer",
       verdict: "partial",
       feedback: "You are close, but consider a model with low train error too.",
       hint: null,
@@ -413,6 +414,132 @@ describe("POST /api/v2/chat leak check on hints", () => {
     await post({ ...assistBody, kind: "lost" });
     await post({ ...assistBody, kind: "rephrase" });
     expect(mockedGenerate).toHaveBeenCalledTimes(4);
+  });
+});
+
+describe("POST /api/v2/chat learner questions mid-chat", () => {
+  // The learner typed a question instead of answering. The check call says so,
+  // a second call answers it, and the reviewer checks that reply for a leak.
+  const asking = { learnerIntent: "question" as const, verdict: "unresolved" as const };
+  const questionBody = {
+    ...checkBody,
+    answer: "Wait, why do we square the errors instead of just adding them up?",
+  };
+
+  it("answers the question and leaves the conversation where it was", async () => {
+    mockedGenerate
+      .mockResolvedValueOnce({ ...asking, feedback: "That is a question, not an answer." })
+      .mockResolvedValueOnce({ reply: "Squaring keeps the sign out of it. Back to my question?" })
+      .mockResolvedValueOnce({ leaks: false, reply: "ignored" });
+
+    const response = await post(questionBody);
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      intent: "question",
+      reply: "Squaring keeps the sign out of it. Back to my question?",
+    });
+  });
+
+  it("does not grade the question or ask a new one", async () => {
+    mockedGenerate
+      .mockResolvedValueOnce({
+        ...asking,
+        feedback: "A question.",
+        // A model that grades anyway must not be able to move the learner on.
+        nextProbeQuestion: "So what would you do instead?",
+        nextMove: "check",
+        hint: "Think about signs.",
+        teaching: "Squaring is for the sign.",
+      })
+      .mockResolvedValueOnce({ reply: "Squaring keeps the sign out of it. Back to my question?" })
+      .mockResolvedValueOnce({ leaks: false, reply: "ignored" });
+
+    const json = await (await post(questionBody)).json();
+
+    expect(json).not.toHaveProperty("verdict");
+    expect(json).not.toHaveProperty("nextProbeQuestion");
+    expect(json).not.toHaveProperty("hint");
+  });
+
+  it("gives the question-answering call the pending question and what they asked", async () => {
+    mockedGenerate
+      .mockResolvedValueOnce({ ...asking, feedback: "A question." })
+      .mockResolvedValueOnce({ reply: "Squaring keeps the sign out of it. Back to my question?" })
+      .mockResolvedValueOnce({ leaks: false, reply: "ignored" });
+
+    await post(questionBody);
+
+    const { user, system } = mockedGenerate.mock.calls[1][0];
+    expect(user).toContain(questionBody.answer);
+    expect(user).toContain(`still waiting to be answered: ${checkBody.probeQuestion}`);
+    expect(user).toContain("Learner: The training score is the one that matters.");
+    expect(system).toContain("instead of answering they asked you one of their own");
+  });
+
+  it("replaces the reply when the reviewer finds it gives the answer away", async () => {
+    mockedGenerate
+      .mockResolvedValueOnce({ ...asking, feedback: "A question." })
+      .mockResolvedValueOnce({
+        reply: "Yes — the gap between 99% and 70% is exactly the overfitting.",
+      })
+      .mockResolvedValueOnce({
+        leaks: true,
+        reply:
+          "Squaring keeps the sign out of it. Now, what do those two scores say to you?",
+      });
+
+    const json = await (await post(questionBody)).json();
+
+    expect(json.reply).toBe(
+      "Squaring keeps the sign out of it. Now, what do those two scores say to you?",
+    );
+    expect(mockedGenerate).toHaveBeenCalledTimes(3);
+  });
+
+  it("keeps the tutor's reply when a leaking rewrite comes back near-empty", async () => {
+    // A one-word rewrite would answer nothing, which is worse than the original:
+    // the learner asked something and has to get an answer to it.
+    mockedGenerate
+      .mockResolvedValueOnce({ ...asking, feedback: "A question." })
+      .mockResolvedValueOnce({ reply: "Squaring keeps the sign out of it. Back to my question?" })
+      .mockResolvedValueOnce({ leaks: true, reply: "Think again." });
+
+    const json = await (await post(questionBody)).json();
+
+    expect(json.reply).toBe("Squaring keeps the sign out of it. Back to my question?");
+  });
+
+  it("still answers the learner when the reviewer call fails", async () => {
+    mockedGenerate
+      .mockResolvedValueOnce({ ...asking, feedback: "A question." })
+      .mockResolvedValueOnce({ reply: "Squaring keeps the sign out of it. Back to my question?" })
+      .mockRejectedValueOnce(new LLMHttpError(502, "upstream"));
+
+    const response = await post(questionBody);
+
+    expect(response.status).toBe(200);
+    expect((await response.json()).reply).toBe(
+      "Squaring keeps the sign out of it. Back to my question?",
+    );
+  });
+
+  it("treats an attempt phrased as a question as an answer", async () => {
+    // The model, not a "?" in the text, decides: a hedged attempt is an answer.
+    mockedGenerate.mockResolvedValueOnce({
+      learnerIntent: "answer",
+      verdict: "resolved",
+      feedback: "Yes, that gap is the giveaway.",
+      nextProbeQuestion: "What would you try next?",
+    });
+
+    const json = await (
+      await post({ ...checkBody, answer: "because the test score is much lower?" })
+    ).json();
+
+    expect(json.intent).toBe("answer");
+    expect(json.verdict).toBe("resolved");
+    expect(mockedGenerate).toHaveBeenCalledTimes(1);
   });
 });
 

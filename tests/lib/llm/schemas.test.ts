@@ -4,7 +4,7 @@ import { getConcept } from "@/lib/learning/concepts";
 import { getMisconception } from "@/lib/learning/misconceptions";
 import { generateStructured } from "@/lib/llm/client";
 import { chatCheckPrompt } from "@/lib/llm/prompts";
-import { chatCheckOutputSchema } from "@/lib/llm/schemas";
+import { chatCheckOutputSchema, chatQuestionOutputSchema } from "@/lib/llm/schemas";
 
 const good =
   "You correctly said the weights stay the same until the optimizer step, which shows you separate gradients from updates.";
@@ -39,6 +39,48 @@ describe("chatCheckOutputSchema feedback", () => {
   });
 });
 
+describe("chatCheckOutputSchema learnerIntent", () => {
+  const base = {
+    verdict: "resolved",
+    feedback: "That is exactly it, the gap between the two scores is the giveaway.",
+    nextProbeQuestion: null,
+    nextMove: null,
+    teaching: null,
+    hint: null,
+  };
+
+  it("defaults to treating a message as an answer", () => {
+    const result = chatCheckOutputSchema.safeParse(base);
+    expect(result.success && result.data.learnerIntent).toBe("answer");
+  });
+
+  it("accepts a question and rejects anything else", () => {
+    expect(
+      chatCheckOutputSchema.safeParse({ ...base, learnerIntent: "question" }).success,
+    ).toBe(true);
+    expect(
+      chatCheckOutputSchema.safeParse({ ...base, learnerIntent: "rambling" }).success,
+    ).toBe(false);
+  });
+
+  it("is required of the model, so the default is only a fallback", () => {
+    // strict JSON-schema mode needs every field listed; a missing one would
+    // silently become "answer" and grade a question as a wrong attempt.
+    expect(z.toJSONSchema(chatCheckOutputSchema).required).toContain("learnerIntent");
+  });
+});
+
+describe("chatQuestionOutputSchema", () => {
+  it("requires a reply of a few sentences", () => {
+    expect(chatQuestionOutputSchema.safeParse({ reply: "Yes." }).success).toBe(false);
+    expect(
+      chatQuestionOutputSchema.safeParse({
+        reply: "Squaring keeps the sign out of it. Now, back to my question.",
+      }).success,
+    ).toBe(true);
+  });
+});
+
 describe("chat feedback that is only the verdict word", () => {
   const reply = (content: object) =>
     new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify(content) } }] }));
@@ -63,6 +105,7 @@ describe("chat feedback that is only the verdict word", () => {
     });
 
     expect(result).toEqual({
+      learnerIntent: "answer",
       verdict: "resolved",
       feedback: good,
       nextProbeQuestion: null,
