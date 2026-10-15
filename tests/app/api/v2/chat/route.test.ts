@@ -6,6 +6,7 @@ vi.mock("@/lib/llm/client", async (importOriginal) => ({
 }));
 
 import { POST } from "@/app/api/v2/chat/route";
+import { getMisconception } from "@/lib/learning/misconceptions";
 import { generateStructured, LLMHttpError } from "@/lib/llm/client";
 
 const mockedGenerate = vi.mocked(generateStructured);
@@ -120,6 +121,41 @@ describe("POST /api/v2/chat diagnose phase", () => {
       takeaway: null,
       probeQuestion: null,
     });
+  });
+
+  it("uses the catalog's hand-checked example, not the one the model wrote", async () => {
+    mockedGenerate.mockResolvedValue({
+      primaryMisconceptionId: MISCONCEPTION,
+      reasoning: "You're leaning on the training score.",
+      explanation: "Compare it with the score on held-out rows.",
+      formula: null,
+      example: "A model gets 200% on train, which is 14 times better.",
+      takeaway: "Always check held-out data.",
+      probeQuestion: "Is that model good?",
+    });
+
+    const json = await (await post(diagnoseBody)).json();
+
+    expect(json.example).toBe(getMisconception(MISCONCEPTION)!.example);
+    expect(json.example).not.toContain("200%");
+  });
+
+  it("gives the model the catalog examples, so its other fields lead into them", async () => {
+    mockedGenerate.mockResolvedValue({
+      primaryMisconceptionId: MISCONCEPTION,
+      reasoning: "r",
+      explanation: "e",
+      formula: null,
+      example: "x",
+      takeaway: "t",
+      probeQuestion: "q",
+    });
+
+    await post(diagnoseBody);
+
+    const { user, system } = mockedGenerate.mock.calls[0][0];
+    expect(user).toContain(getMisconception(MISCONCEPTION)!.example);
+    expect(system).toContain("reproduce it exactly as written");
   });
 
   it("passes a plain-text formula through to the learner", async () => {

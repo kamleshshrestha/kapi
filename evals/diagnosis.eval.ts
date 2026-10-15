@@ -29,6 +29,12 @@ import { evalCases, type EvalCase } from "./cases";
  *   reported exactly that). Judged by the DIFFERENT model against the
  *   hand-written catalog correction, which is ground truth.
  *
+ *   Since 2026-10-15 the examples are hand-written in the catalog and the
+ *   route sends those rather than whatever the model wrote, which took this
+ *   number from 3/18 and 2/18 to 0/17: both real errors found were in
+ *   generated examples. What the model still writes freely, and what this
+ *   number therefore still watches, is the explanation and the takeaway.
+ *
  *   Read this number as a floor, not a guarantee, and read the texts before
  *   believing a flag. Measured over two runs on 2026-10-15, 18 judged
  *   diagnoses each, every flag checked by hand: roughly half were real.
@@ -155,8 +161,11 @@ async function runCase(c: EvalCase): Promise<Result> {
     // diagnosis taught them something; a strong explanation gets a compliment
     // and a question, with no claims of its own to check.
     if (diagnosis.explanation || diagnosis.example || diagnosis.takeaway) {
-      const review = await stage("accuracy", () =>
-        generateStructured({
+      // Best effort: this is an extra measurement, so a judge that times out
+      // or comes back empty leaves the case unjudged rather than throwing away
+      // its diagnosis and leak results too.
+      try {
+        const review = await generateStructured({
           ...accuracyCheckPrompt({
             concept,
             misconception,
@@ -166,10 +175,14 @@ async function runCase(c: EvalCase): Promise<Result> {
           }),
           schema: accuracyCheckOutputSchema,
           model: JUDGE,
-        }),
-      );
-      result.inaccurate = !review.accurate;
-      result.accuracyProblem = review.problem;
+        });
+        result.inaccurate = !review.accurate;
+        result.accuracyProblem = review.problem;
+      } catch (error) {
+        result.accuracyProblem = `judge failed: ${
+          error instanceof Error ? error.message : String(error)
+        }`;
+      }
     }
 
     if (c.acceptable.length === 0 || !probe) {
@@ -293,6 +306,9 @@ it("diagnoses explanations accurately, tells the learner nothing untrue, and nev
   });
   const inaccurate = results.filter((r) => r.inaccurate).length;
   const accuracyJudged = results.filter((r) => r.inaccurate !== undefined).length;
+  const accuracyUnjudged = results.filter(
+    (r) => r.inaccurate === undefined && r.accuracyProblem,
+  ).length;
   const rawLeaks = results.filter((r) => r.rawLeak).length;
   const leaks = results.filter((r) => r.guardedLeak).length;
   const judged = results.filter((r) => r.rawLeak !== undefined).length;
@@ -305,6 +321,7 @@ it("diagnoses explanations accurately, tells the learner nothing untrue, and nev
     diagnosis: `${correct}/${results.length}`,
     byKind,
     inaccurate: `${inaccurate}/${accuracyJudged}`,
+    ...(accuracyUnjudged ? { accuracyUnjudged } : {}),
     inaccuracies: results.filter((r) => r.inaccurate).map((r) => `#${r.id} ${r.accuracyProblem}`),
     rawLeaks: `${rawLeaks}/${judged}`,
     guardedLeaks: `${leaks}/${judged}`,

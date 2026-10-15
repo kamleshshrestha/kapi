@@ -114,6 +114,13 @@ export async function POST(request: Request) {
         schema: chatDiagnoseOutputSchema(misconceptions.map((m) => m.id)),
       });
 
+      // The hand-checked example wins over whatever the model wrote, so a
+      // learner never sees invented arithmetic. The prompt asks for it
+      // verbatim as well, so the explanation and takeaway lead into this one.
+      const diagnosed = result.primaryMisconceptionId
+        ? (getMisconception(result.primaryMisconceptionId) ?? null)
+        : null;
+
       countEvent("chat_started", { concept: concept.id });
       logChatEvent({
         sessionId: data.sessionId,
@@ -131,7 +138,7 @@ export async function POST(request: Request) {
         // Dropped rather than shown if it is LaTeX or prose: the app renders
         // it as plain text, so a beginner would otherwise see the source.
         formula: cleanFormula(scrubNullable(result.formula ?? null, misconceptions)),
-        example: scrubNullable(result.example, misconceptions),
+        example: diagnosed?.example ?? scrubNullable(result.example, misconceptions),
         takeaway: scrubNullable(result.takeaway, misconceptions),
         probeQuestion: scrubNullable(result.probeQuestion, misconceptions),
       });

@@ -13,6 +13,14 @@ export type Misconception = {
   belief: string;
   /** What is actually true. */
   correction: string;
+  /**
+   * A hand-written, hand-checked example that makes the correction concrete.
+   * Shown to the learner as written, instead of one the model invents: both
+   * real inaccuracies the evaluation found were in generated examples, where a
+   * beginner cannot catch a slip and every number looked plausible. Keep the
+   * arithmetic checkable and the claim exactly what the numbers show.
+   */
+  example?: string;
 };
 
 export type DiagnosticOption = {
