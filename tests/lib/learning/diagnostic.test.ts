@@ -120,3 +120,36 @@ describe("lookups", () => {
     expect(getMisconceptionsForConcept(CONCEPT).length).toBeGreaterThan(0);
   });
 });
+
+describe("hand-written catalog examples", () => {
+  const withExample = misconceptions.filter((m) => m.example);
+
+  it("gives every misconception an example, since a missing one falls back to the model", () => {
+    expect(withExample).toHaveLength(misconceptions.length);
+  });
+
+  it("keeps each one short enough to read in a chat bubble", () => {
+    for (const m of withExample) {
+      expect(m.example!.length, m.id).toBeGreaterThan(80);
+      expect(m.example!.length, m.id).toBeLessThan(500);
+    }
+  });
+
+  it("writes them as plain prose a learner can read", () => {
+    for (const m of withExample) {
+      // No markdown, LaTeX or internal ids leaking into learner-facing text.
+      // A lone * is fine: the examples use it for multiplication.
+      expect(m.example!, m.id).not.toMatch(/\*\*|__|`|^#|\\[a-zA-Z]+|\$\$/);
+      expect(m.example!, m.id).not.toContain(m.id);
+      expect(m.example!.trim(), m.id).toBe(m.example);
+    }
+  });
+
+  it("makes each one concrete rather than restating the correction", () => {
+    for (const m of withExample) {
+      // An example earns its place by being specific: numbers or a scenario.
+      expect(/\d/.test(m.example!), `${m.id} has no numbers`).toBe(true);
+      expect(m.example!, m.id).not.toBe(m.correction);
+    }
+  });
+});

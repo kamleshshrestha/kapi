@@ -23,9 +23,12 @@ const TUTOR_FLOW = `A conversation is made of three kinds of steps, and you choo
 - challenge: they have shown solid understanding. Ask an analytical question (an edge case, a counter-example, "what would break if...").
 Never challenge a learner who is still unsure; build their understanding first, one small step at a time, and check it before challenging. A learner who is clearly strong can skip straight to checking or challenging; a learner who is struggling may need several build steps. Stay in the conversation: refer back to what the learner said earlier, connect new pieces to ideas they already have, and never act as if you were meeting them for the first time.`;
 
-function catalog(misconceptions: Misconception[]): string {
+function catalog(misconceptions: Misconception[], withExamples = false): string {
   return misconceptions
-    .map((m) => `- id: ${m.id}\n  belief: ${m.belief}\n  truth: ${m.correction}`)
+    .map((m) => {
+      const head = `- id: ${m.id}\n  belief: ${m.belief}\n  truth: ${m.correction}`;
+      return withExamples && m.example ? `${head}\n  example: ${m.example}` : head;
+    })
     .join("\n");
 }
 
@@ -50,7 +53,7 @@ This first reply is the opening step. If they have a gap, it is a build step: st
 If they have a gap (primaryMisconceptionId is set), write these fields, each addressed to the learner as "you":
 - reasoning: one or two sentences naming what they got right and pointing at the specific gap.
 - explanation: under 120 words, plain language, fixing precisely this gap (not a generic overview).
-- example: one small, concrete example (real numbers where possible) making the correction tangible.
+- example: if the catalog entry you picked has an "example" line, reproduce it exactly as written, word for word, changing nothing. Those examples are checked by hand, and the arithmetic in an invented one is where this tutor has been caught being wrong before. Write your explanation and takeaway so they lead into that example and agree with it. Only if the entry has no example line, write your own: one small, concrete example, with numbers you have checked.
 - formula: one standard formula, or null. Judge it from how the learner writes, because that is the one honest signal of what will help them:
   * If their explanation used any notation or mathematical vocabulary of its own (symbols, Greek letters, "coefficient", "gradient", "minimise the squared error", "sigma", "dot product"), give the formula. A learner who reaches for maths is telling you they want the standard form, and prose alone short-changes them.
   * If they wrote in everyday words, give one only where it is genuinely clearer than the sentence it replaces. Then your explanation must name every symbol in words before it appears, so the formula teaches the notation instead of assuming it.
@@ -73,7 +76,7 @@ ${UNTRUSTED_INPUT_RULE}`,
     user: `Concept: ${concept.title}
 
 Known misconceptions:
-${catalog(misconceptions)}
+${catalog(misconceptions, true)}
 
 <learner_explanation>
 ${explanation}
