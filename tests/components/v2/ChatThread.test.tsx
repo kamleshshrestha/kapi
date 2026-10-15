@@ -23,6 +23,7 @@ afterEach(cleanup);
 function renderThread(overrides: Record<string, unknown> = {}) {
   const submit = vi.fn();
   const assist = vi.fn();
+  const gate = vi.fn();
   const retry = vi.fn();
   session.current = {
     messages: [{ role: "kapi", text: "Hey there" }],
@@ -32,6 +33,7 @@ function renderThread(overrides: Record<string, unknown> = {}) {
     error: null,
     submit,
     assist,
+    gate,
     retry,
     canRetry: false,
     summary: null,
@@ -40,7 +42,7 @@ function renderThread(overrides: Record<string, unknown> = {}) {
     ...overrides,
   };
   render(<ChatThread conceptId="overfitting" conceptTitle="Overfitting" fallbackOptions={[]} />);
-  return { submit, assist, retry };
+  return { submit, assist, gate, retry };
 }
 
 describe("ChatThread", () => {
@@ -82,6 +84,30 @@ describe("ChatThread", () => {
       "href",
       "/",
     );
+  });
+
+  it("offers the checkpoint chips while waiting to hear whether the fix landed", () => {
+    const { gate } = renderThread({ phase: "await-gate" });
+
+    fireEvent.click(screen.getByRole("button", { name: "Makes sense" }));
+    expect(gate).toHaveBeenCalledExactlyOnceWith("ready");
+
+    fireEvent.click(screen.getByRole("button", { name: "I have a question" }));
+    expect(gate).toHaveBeenLastCalledWith("ask");
+  });
+
+  it("offers no help chips at the checkpoint, where no question has been asked", () => {
+    renderThread({ phase: "await-gate" });
+
+    expect(screen.queryByRole("button", { name: "I'm lost" })).toBeNull();
+    // Typing a question instead of clicking has to work, so the input stays open.
+    expect(screen.getByPlaceholderText("Ask Kapi a question…")).toBeInTheDocument();
+  });
+
+  it("shows no checkpoint chips once the question has been asked", () => {
+    renderThread({ phase: "await-check-answer" });
+
+    expect(screen.queryByRole("button", { name: "Makes sense" })).toBeNull();
   });
 
   it("offers help chips while a question is waiting, and routes them to assist", () => {

@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { getMisconception } from "@/lib/learning/misconceptions";
 import { pickOpener, welcomeBackOpener } from "@/lib/learning/v2/openers";
+import { GATE_ASK_PROMPT, GATE_ACTIONS, pickGateLine } from "@/lib/learning/v2/gate";
+import type { GateKind } from "@/lib/learning/v2/gate";
 import { readLastSession, writeLastSession } from "@/lib/learning/v2/localSession";
 import { postJson } from "@/lib/learning/v2/api";
 import { evidenceFor, levelForMove } from "@/lib/learning/v2/levels";
@@ -96,6 +98,13 @@ export function useV2ChatSession(
   const [turn, setTurn] = useState(1);
   // 1 on a fresh question, 2 once a hint has been given for it.
   const [attempt, setAttempt] = useState(1);
+  // What the checkpoint after Kapi's explanation is holding back until the
+  // learner says they are ready: the example and the first question.
+  const [pendingReveal, setPendingReveal] = useState<{
+    example: string | null;
+    takeaway: string | null;
+    probeQuestion: string;
+  } | null>(null);
   const [cardSaved, setCardSaved] = useState(false);
   const [verdicts, setVerdicts] = useState<Verdict[]>([]);
   const [summary, setSummary] = useState<SessionSummary | null>(null);
@@ -157,16 +166,10 @@ export function useV2ChatSession(
         sessionId: getSessionId(),
       });
 
-      // One message, like a tutor talking: the reaction and fix, the example,
-      // then the question, as paragraphs rather than separate bubbles.
-      append(
-        "kapi",
-        paragraphs(
-          [result.reasoning, result.explanation].filter(Boolean).join(" "),
-          [result.example, result.takeaway].filter(Boolean).join(" "),
-          result.probeQuestion,
-        ),
-      );
+      // The reaction and the fix come first and on their own. A learner told us
+      // the opening arrived as one long text, so the example and the question
+      // wait behind a checkpoint instead of landing in the same breath.
+      append("kapi", [result.reasoning, result.explanation].filter(Boolean).join(" "));
 
       // No gap found: a strong first explanation is evidence for "explain".
       if (result.misconceptionId === null) recordEvidence(conceptId, "explain", "clean");
@@ -190,17 +193,86 @@ export function useV2ChatSession(
       }
 
       setMisconceptionId(result.misconceptionId);
-      setProbeQuestion(result.probeQuestion);
       setMove(result.misconceptionId ? "build" : "challenge");
       setTurn(1);
       setAttempt(1);
-      setPhase("await-check-answer");
+
+      // A strong explanation was not taught anything, so there is nothing to
+      // check understanding of: the challenge follows straight away.
+      const taught = Boolean(result.explanation || result.example || result.takeaway);
+      if (!taught) {
+        append("kapi", result.probeQuestion);
+        setProbeQuestion(result.probeQuestion);
+        setPhase("await-check-answer");
+        return;
+      }
+
+      append("kapi", pickGateLine());
+      setPendingReveal({
+        example: result.example,
+        takeaway: result.takeaway,
+        probeQuestion: result.probeQuestion,
+      });
+      setPhase("await-gate");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong.");
       setFailedAction({ run: () => void submitExplanation(text, true) });
     } finally {
       setPending(false);
     }
+  }
+
+  /** The learner is ready: the example and the first question follow. */
+  function revealQuestion() {
+    if (!pendingReveal) return;
+    const { example, takeaway, probeQuestion } = pendingReveal;
+    const teaching = [example, takeaway].filter(Boolean).join(" ");
+    if (teaching) append("kapi", teaching);
+    append("kapi", probeQuestion);
+    setProbeQuestion(probeQuestion);
+    setPendingReveal(null);
+    setPhase("await-check-answer");
+  }
+
+  /**
+   * A question asked at the checkpoint, where Kapi has asked nothing yet. No
+   * classification is needed (the learner is not answering anything) and the
+   * checkpoint stays open, so they can ask again or move on when ready.
+   */
+  async function askAtGate(text: string, retrying = false) {
+    const history = messages.slice(-CHAT_HISTORY_LIMIT);
+    if (!retrying) append("learner", text);
+    setPending(true);
+    setError(null);
+    try {
+      const result = await postJson<{ reply: string }>("/api/v2/chat", {
+        conceptId,
+        phase: "question",
+        sessionId: getSessionId(),
+        misconceptionId,
+        probeQuestion: null,
+        learnerQuestion: text,
+        history,
+      });
+      append("kapi", result.reply);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Something went wrong.");
+      setFailedAction({ run: () => void askAtGate(text, true) });
+    } finally {
+      setPending(false);
+    }
+  }
+
+  /** The checkpoint chips: ready to go on, or a question first. */
+  function gate(kind: GateKind) {
+    if (pending || phase !== "await-gate") return;
+    setFailedAction(null);
+    append("learner", GATE_ACTIONS.find((a) => a.kind === kind)?.label ?? kind);
+    if (kind === "ready") {
+      revealQuestion();
+      return;
+    }
+    append("kapi", GATE_ASK_PROMPT);
   }
 
   /** Best-effort recap: a failure just means no recap card, never an error. */
@@ -261,7 +333,8 @@ export function useV2ChatSession(
 
       // First miss: nudge instead of revealing, and let them retry this question.
       if (result.hint && !resolved && attempt === 1) {
-        append("kapi", paragraphs(result.feedback, result.hint));
+        append("kapi", result.feedback);
+        append("kapi", result.hint);
         setAttempt(2);
         return;
       }
@@ -306,7 +379,9 @@ export function useV2ChatSession(
 
       const next = turn >= MAX_CHAT_TURNS ? null : result.nextProbeQuestion;
       if (next) {
-        append("kapi", paragraphs(result.feedback, result.teaching, next));
+        append("kapi", result.feedback);
+        if (result.teaching) append("kapi", result.teaching);
+        append("kapi", next);
         setProbeQuestion(next);
         setMove(result.nextMove ?? "check");
         setTurn((t) => t + 1);
@@ -367,7 +442,8 @@ export function useV2ChatSession(
         probeQuestion,
         history,
       });
-      append("kapi", paragraphs(result.reply, result.question));
+      append("kapi", result.reply);
+      if (result.question) append("kapi", result.question);
       if (result.question) {
         setProbeQuestion(result.question);
         setMove("build");
@@ -393,6 +469,7 @@ export function useV2ChatSession(
     if (!text.trim() || pending || phase === "done") return;
     setFailedAction(null);
     if (phase === "await-explanation") void submitExplanation(text);
+    else if (phase === "await-gate") void askAtGate(text);
     else if (phase === "await-check-answer") void submitCheckAnswer(text);
   }
 
@@ -404,6 +481,7 @@ export function useV2ChatSession(
     error,
     submit,
     assist,
+    gate,
     retry,
     canRetry: failedAction !== null && !pending,
     summary,
