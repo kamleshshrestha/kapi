@@ -8,10 +8,13 @@ export default function ChatInputBar({
   disabled,
   pending,
   onSubmit,
+  /** Overridden where the learner can do more than answer (the tutor chat). */
+  placeholder = "Type your answer…",
 }: {
   disabled: boolean;
   pending: boolean;
   onSubmit: (text: string) => void;
+  placeholder?: string;
 }) {
   const [text, setText] = useState("");
 
@@ -43,7 +46,7 @@ export default function ChatInputBar({
         rows={1}
         disabled={disabled}
         placeholder={
-          pending ? "Kapi is typing…" : disabled ? "Session complete" : "Type your answer…"
+          pending ? "Kapi is typing…" : disabled ? "Session complete" : placeholder
         }
         className="max-h-40 flex-1 resize-none rounded-xl border border-foreground/20 bg-transparent p-3 leading-6 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-60"
       />

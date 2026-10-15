@@ -38,15 +38,23 @@ type DiagnoseResponse = {
 
 type Verdict = "resolved" | "partial" | "unresolved";
 
-type CheckResponse = {
-  verdict: Verdict;
-  feedback: string;
-  hint: string | null;
-  /** A small piece of teaching that comes before a "build" question. */
-  teaching: string | null;
-  nextMove: ChatMove | null;
-  nextProbeQuestion: string | null;
-};
+type CheckResponse =
+  | {
+      intent: "answer";
+      verdict: Verdict;
+      feedback: string;
+      hint: string | null;
+      /** A small piece of teaching that comes before a "build" question. */
+      teaching: string | null;
+      nextMove: ChatMove | null;
+      nextProbeQuestion: string | null;
+    }
+  /**
+   * The learner asked a question instead of answering. Kapi answers it and the
+   * question it asked stays pending, so nothing about the conversation's
+   * progress moves: no verdict, no turn, no card, no depth-level evidence.
+   */
+  | { intent: "question"; reply: string };
 
 export type AssistKind = "hint" | "lost" | "rephrase";
 
@@ -241,6 +249,14 @@ export function useV2ChatSession(
         move,
         verdicts,
       });
+      // A question, not an answer: reply and leave the question standing.
+      // Both messages stay in `messages`, so the next turn's history carries
+      // them and Kapi picks the thread up where the learner left it.
+      if (result.intent === "question") {
+        append("kapi", result.reply);
+        return;
+      }
+
       const resolved = result.verdict === "resolved";
 
       // First miss: nudge instead of revealing, and let them retry this question.

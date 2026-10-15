@@ -108,6 +108,13 @@ export function chatDiagnoseOutputSchema(misconceptionIds: string[]) {
 }
 
 export const chatCheckOutputSchema = z.object({
+  /**
+   * Whether the learner's message attempts the question or asks one of their
+   * own. A hedged, partial or wrong attempt is still an "answer"; "question"
+   * means they want something cleared up before answering, and the grading
+   * fields below are then ignored in favour of a separate reply.
+   */
+  learnerIntent: z.enum(["answer", "question"]).default("answer"),
   verdict: chatVerdictSchema,
   feedback: z
     .string()
@@ -137,6 +144,17 @@ export const chatAssistOutputSchema = z.object({
   }),
   /** A simpler question to answer now in place of the current one, or null. */
   question: z.string().nullable(),
+});
+
+/**
+ * Kapi answering a question the learner asked instead of answering Kapi's.
+ * There is no verdict and no new question: the question already on the table
+ * stays on it.
+ */
+export const chatQuestionOutputSchema = z.object({
+  reply: z.string().refine((text) => text.trim().length >= 20, {
+    message: "reply must be a few full sentences for the learner",
+  }),
 });
 
 export const chatSummaryOutputSchema = z.object({
@@ -183,6 +201,18 @@ export const leakCheckOutputSchema = z.object({
   feedback: z.string().nullable(),
   /** Safe replacement hint when it leaked; the original otherwise. */
   hint: z.string(),
+});
+
+/**
+ * Verdict from the reviewer that checks a reply to a learner's question. Unlike
+ * the hint reviewer, a leak here is fixed by trimming the giveaway out of the
+ * reply, not by replacing it with a nudge: the learner asked something and
+ * still has to get an answer.
+ */
+export const questionLeakCheckOutputSchema = z.object({
+  leaks: z.boolean(),
+  /** The reply, with the giveaway removed when it leaked; the original otherwise. */
+  reply: z.string(),
 });
 
 export const feedbackFoundGap = ["yes", "partly", "no"] as const;

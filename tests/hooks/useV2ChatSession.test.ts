@@ -39,6 +39,7 @@ function checkReply(
   extra: { teaching?: string | null; nextMove?: "build" | "check" | "challenge" } = {},
 ) {
   reply({
+    intent: "answer",
     verdict,
     feedback: `Feedback for ${verdict}.`,
     nextProbeQuestion,
@@ -46,6 +47,11 @@ function checkReply(
     teaching: extra.teaching ?? null,
     nextMove: nextProbeQuestion ? (extra.nextMove ?? "check") : null,
   });
+}
+
+/** Kapi answering a question the learner asked instead of answering its own. */
+function questionReply(text = "Squaring keeps the sign out of it. Back to my question?") {
+  reply({ intent: "question", reply: text });
 }
 
 function setup() {
@@ -429,6 +435,84 @@ describe("useV2ChatSession check phase", () => {
 
     expect(fetchMock.mock.calls.length).toBe(calls);
     expect(result.current.messages).toHaveLength(count);
+  });
+});
+
+describe("useV2ChatSession learner questions", () => {
+  it("shows Kapi's answer without ending the turn", async () => {
+    const hook = await reachCheckPhase();
+    questionReply();
+
+    act(() => hook.result.current.submit("Why do we square the errors?"));
+
+    await waitFor(() =>
+      expect(hook.result.current.messages.at(-1)).toEqual({
+        role: "kapi",
+        text: "Squaring keeps the sign out of it. Back to my question?",
+      }),
+    );
+    // The learner's question is in the thread, so the next turn's history has it.
+    expect(hook.result.current.messages.at(-2)).toEqual({
+      role: "learner",
+      text: "Why do we square the errors?",
+    });
+    expect(hook.result.current.phase).toBe("await-check-answer");
+  });
+
+  it("keeps the same question pending and does not spend a turn", async () => {
+    const hook = await reachCheckPhase();
+    questionReply();
+    act(() => hook.result.current.submit("Why do we square the errors?"));
+    await waitFor(() => expect(hook.result.current.pending).toBe(false));
+
+    // Answering now is still the first attempt at the first question.
+    checkReply("resolved", "Next one?");
+    act(() => hook.result.current.submit("Because the test score is much lower."));
+    await waitFor(() => expect(hook.result.current.pending).toBe(false));
+
+    const answered = lastCheckBody();
+    expect(answered.probeQuestion).toBe("Train 99%, test 70%: is it good?");
+    expect(answered.turn).toBe(1);
+    expect(answered.attempt).toBe(1);
+    expect(answered.verdicts).toEqual([]);
+  });
+
+  it("asking questions never exhausts the turn limit", async () => {
+    const hook = await reachCheckPhase();
+
+    for (let i = 0; i < MAX_CHAT_TURNS + 2; i++) {
+      questionReply(`Answer ${i}.`);
+      act(() => hook.result.current.submit(`Question ${i}?`));
+      await waitFor(() => expect(hook.result.current.pending).toBe(false));
+    }
+
+    expect(hook.result.current.phase).toBe("await-check-answer");
+    expect(lastCheckBody().turn).toBe(1);
+  });
+
+  it("saves no flashcard and records no level evidence for a question", async () => {
+    const hook = await reachCheckPhase();
+    questionReply();
+
+    act(() => hook.result.current.submit("Why do we square the errors?"));
+    await waitFor(() => expect(hook.result.current.pending).toBe(false));
+
+    expect(readPersonalCards("overfitting")).toEqual([]);
+    expect(readLevels("overfitting").explain).toBeFalsy();
+    // The gap is still open: a question is not progress on it.
+    expect(readLastSession("overfitting")?.resolved).toBe(false);
+  });
+
+  it("sends the question on the check phase, as the learner's message", async () => {
+    const hook = await reachCheckPhase();
+    questionReply();
+
+    act(() => hook.result.current.submit("Why do we square the errors?"));
+    await waitFor(() => expect(hook.result.current.pending).toBe(false));
+
+    const body = lastCheckBody();
+    expect(body.phase).toBe("check");
+    expect(body.answer).toBe("Why do we square the errors?");
   });
 });
 

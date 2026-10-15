@@ -8,6 +8,9 @@ import { createAdminClient } from "@/lib/supabase/admin";
  * - chat_finished: the recap was produced at the end of a chat.
  * - teach_started / teach_finished: teach-it-back first and last message
  *   (detail = the verdict on the last one).
+ * - learner_question: the learner asked Kapi a question mid-chat instead of
+ *   answering, which costs them no turn. How often this happens says whether
+ *   learners need to steer the conversation themselves.
  * - rate_limited: a request was refused by the limiter (counted in batches, see countFloodEvent).
  * - model_error: the AI call failed (detail = the HTTP status we returned).
  */
@@ -16,6 +19,7 @@ export type AnalyticsEvent =
   | "chat_finished"
   | "teach_started"
   | "teach_finished"
+  | "learner_question"
   | "rate_limited"
   | "model_error";
 
